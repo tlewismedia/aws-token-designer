@@ -636,6 +636,7 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 | `docs/TESTING.md` | Test strategy | 6 |
 | `docs/TERRAFORM.md` | Terraform primer and conventions | 1 |
 | `docs/RAID.md` | Risks, assumptions, issues, dependencies | 0 |
+| `docs/AGENTS.md` | Agent orchestration rules | 0 |
 | `docs/diagrams/*.mmd` | Diagram sources (inline in `ARCHITECTURE.md` initially) | 0 |
 | `docs/diagrams/aws-deployment.d2` | AWS deployment source (D2 + AWS icons) | 0 |
 | `docs/diagrams/aws-deployment.svg` / `.png` | Generated deployment exports | 0 |
