@@ -4,6 +4,12 @@ A port of the Firebase Token Designer to AWS. Users generate or upload token ima
 
 **Status:** Plan drafted; awaiting review. Implementation not started.
 
+## Links
+
+- Repo: https://github.com/tlewismedia/aws-token-designer
+- Kanban board: https://github.com/users/tlewismedia/projects/7
+- Issues: https://github.com/tlewismedia/aws-token-designer/issues
+
 ## Documentation
 
 | Doc | Purpose |
