@@ -43,7 +43,10 @@ Or use the [D2 Playground](https://play.d2lang.com) for quick previews.
 ## Editing workflow
 
 1. Edit `aws-deployment.d2`.
-2. Run `./scripts/render-diagram.sh`.
+2. Run `./scripts/render-diagram.sh` (or just commit — the lefthook
+   pre-commit hook in `lefthook.yml` re-renders changed `.d2` sources and
+   stages the exports automatically; run `lefthook install` once per clone
+   to enable it).
 3. Inspect `aws-deployment.svg`/`.png`.
 4. If the auto-layout needs a final touch, open the SVG in draw.io/Figma, polish, and commit `aws-deployment.drawio` alongside the export.
 5. Update the "Last updated" date below.

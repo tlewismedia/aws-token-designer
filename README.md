@@ -16,6 +16,8 @@ A port of the Firebase Token Designer to AWS. Users generate or upload token ima
 |---|---|
 | [`PRE_PLANNING.md`](PRE_PLANNING.md) | Discussion record and decision log |
 | [`docs/PLAN.md`](docs/PLAN.md) | Official implementation plan |
+| [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Functional/non-functional requirements (FR/NFR) |
+| [`docs/RAID.md`](docs/RAID.md) | Risks, assumptions, issues, dependencies |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture document and diagrams |
 | [`docs/PUBLIC_SAFE.md`](docs/PUBLIC_SAFE.md) | Public repository policy and checklist |
 | [`docs/adr/README.md`](docs/adr/README.md) | Architecture Decision Records index and template |
