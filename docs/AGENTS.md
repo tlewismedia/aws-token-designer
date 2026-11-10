@@ -190,11 +190,21 @@ The orchestrator invokes subagents via the `subagent` tool with complete, self-c
 
 ---
 
-## Slash commands
+## Working with the orchestrator
 
-- `/implement <N>` — full implementer dispatch for issue N (`.opencode/commands/implement.md`).
-- `/review <N>` — full reviewer dispatch for issue N (`.opencode/commands/review.md`).
-- `/ticket <rest>` — ticket-creation skill (see available skills).
+There are no slash commands for this workflow — it's conversational. Tell the
+main agent what to do in plain language:
+
+- "Implement #3" — fetch the spec, verify it's complete, create the worktree,
+  spawn the implementer, inspect the diff, move the card to In Review.
+- "Review the Phase 2 work" — capture the diff and test output, spawn the
+  reviewer, surface the verdict. Nothing posted or opened without your confirmation.
+- "Write a ticket for X" — draft the spec in the issue body per the ticket
+  template (or use the `/ticket` skill).
+
+The agent files above define the subagent contracts; this document defines the
+orchestration. The checklist the old `/implement` and `/review` commands
+contained lives in "How to dispatch agents" below.
 
 ---
 
