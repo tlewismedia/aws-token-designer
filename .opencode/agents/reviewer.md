@@ -14,16 +14,31 @@ permissions:
     resource: "git diff*"
     effect: allow
   - action: shell
+    resource: "git -C * diff*"
+    effect: allow
+  - action: shell
     resource: "git log*"
+    effect: allow
+  - action: shell
+    resource: "git -C * log*"
     effect: allow
   - action: shell
     resource: "git status*"
     effect: allow
   - action: shell
+    resource: "git -C * status*"
+    effect: allow
+  - action: shell
     resource: "npm test*"
     effect: allow
   - action: shell
+    resource: "npm --prefix * test*"
+    effect: allow
+  - action: shell
     resource: "npm run lint*"
+    effect: allow
+  - action: shell
+    resource: "npm --prefix * run lint*"
     effect: allow
   - action: shell
     resource: "npx tsc*"
@@ -32,7 +47,13 @@ permissions:
     resource: "terraform fmt -check*"
     effect: allow
   - action: shell
+    resource: "terraform -chdir=* fmt -check*"
+    effect: allow
+  - action: shell
     resource: "terraform validate*"
+    effect: allow
+  - action: shell
+    resource: "terraform -chdir=* validate*"
     effect: allow
 ---
 
