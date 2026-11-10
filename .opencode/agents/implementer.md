@@ -19,6 +19,23 @@ permissions:
   - action: shell
     resource: "git checkout main*"
     effect: deny
+  # Infra guardrails: provisioning is human-gated. Subagents may plan and
+  # validate but must never create, change, or destroy cloud resources.
+  - action: shell
+    resource: "terraform apply*"
+    effect: deny
+  - action: shell
+    resource: "terraform destroy*"
+    effect: deny
+  - action: shell
+    resource: "terraform import*"
+    effect: deny
+  - action: shell
+    resource: "aws *"
+    effect: deny
+  - action: shell
+    resource: "aws sts get-caller-identity*"
+    effect: allow
   - action: edit
     resource: "*"
     effect: allow
