@@ -14,7 +14,7 @@ conventions, and OpenCode subagents.
 1. **One agent, one job.** Subagents produce artifacts (code, reviews). They do not decide workflow.
 2. **The orchestrator owns all external state.** Only the main agent changes GitHub issues, board items, labels, milestones, and PRs. Subagents cannot run `gh` at all.
 3. **Durable artifacts over chat.** Decisions live in GitHub issues, PRs, and commits — not in conversation history.
-4. **Human at the state transitions.** Humans confirm anything hard to reverse: posting a review, opening a PR, merging, closing an issue.
+4. **Review by reading commits.** The orchestrator lands approved, green work automatically; the human reviews by reading the merged commits on `main`. Confirmation is still required for destructive or judgment-call actions (force push, manual close, re-dispatch decisions) — see "What needs confirmation".
 5. **Traceable provenance.** Every agent action is tagged (`AGENT:` commits, `[IMPLEMENTER AGENT]` / `[REVIEWER AGENT]` reports) so a human can see what was done by whom.
 6. **Always link.** When mentioning an issue or PR, include the full URL (e.g. `https://github.com/tlewismedia/aws-token-designer/issues/3`) — not just `#3`.
 7. **Trust but verify.** Check the actual diff/code before accepting an agent's summary as complete.
@@ -96,9 +96,9 @@ If a spec genuinely needs research the orchestrator doesn't have, the orchestrat
 5. Orchestrator → inspects the diff; moves board item to In Review
 6. Reviewer     → outputs APPROVED or REQUESTED CHANGES
 7a. If REQUESTED CHANGES → surface to human; re-dispatch implementer only with confirmation
-7b. If APPROVED           → ask human before posting verdict or opening PR
-8. Human        → reviews PR diff and merges (auto-closes issue via `Closes #<N>`)
-9. Orchestrator → moves board item to Done after merge
+7b. If APPROVED           → orchestrator posts verdict, opens PR, merges, moves board to Done — automatically, once the suite is green and the diff is inspected
+8. Human        → reviews the merged commits on `main` at their leisure (review-by-reading-commits policy)
+9. Orchestrator → deletes the merged branch and removes the clean worktree
 ```
 
 Board transitions are manual (orchestrator via `gh`/GraphQL). The deleted
@@ -135,23 +135,22 @@ Milestones M0–M6 group issues by delivery phase. Only the orchestrator sets th
 
 ## What needs confirmation
 
-**Orchestrator may do without asking:**
+**Orchestrator may do without asking (review-by-reading-commits policy):**
 
-- Creating/updating issues, board moves, label/milestone changes.
+- Creating/updating issues, board moves (full lifecycle including Done), label/milestone changes.
 - Spawning implementer/reviewer subagents on an approved spec.
-- Posting implementer progress notes.
+- Posting implementer progress notes and reviewer verdicts.
+- Opening PRs and merging them — once the reviewer has approved, the full suite is green, and the orchestrator has inspected the diff.
+- Auto-closing issues via `Closes #<N>` on merge.
+- Deleting merged branches and removing clean worktrees.
 
-**Requires human confirmation before action:**
+**Still requires human confirmation before action:**
 
-- Merging a PR.
-- Closing an issue.
-- Posting a reviewer verdict as a GitHub comment.
-- Opening a PR.
-- Deleting branches or worktrees.
 - Any `git reset --hard`, force push, or amend of pushed commits.
-- Re-dispatching the implementer after REQUESTED CHANGES.
+- Manually closing an issue that has no merged PR.
+- Re-dispatching the implementer after REQUESTED CHANGES (decision point: re-dispatch vs adjust spec vs won't-fix).
 
-Why: merging and closing are hard to reverse. PRs open only after review so the human has a diff to judge. A REQUESTED CHANGES verdict deserves a human decision on whether to re-dispatch, adjust the spec, or close as won't-fix.
+Why: the merge path is now mechanical — approval + green suite + inspected diff — and every step leaves a durable artifact (verdict comment, PR, `AGENT:` commits) for the human to review by reading commits on `main`. Confirmation is reserved for destructive actions and genuine judgment calls.
 
 ---
 
