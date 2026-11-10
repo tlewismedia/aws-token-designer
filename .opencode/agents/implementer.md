@@ -1,7 +1,8 @@
 ---
 description: Implements one GitHub issue spec in an isolated worktree
 mode: subagent
-model: opencode/claude-sonnet-5-5#high
+# No `model:` pin — subagents inherit the orchestrator's model so they
+# always authenticate on the same provider/key (see docs/AGENTS.md).
 permissions:
   - action: shell
     resource: "*"

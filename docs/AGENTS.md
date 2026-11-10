@@ -43,6 +43,12 @@ Reads: issue body + plan/architecture docs + relevant code.
 
 Writes code and tests in a worktree branch.
 
+**Model:** no `model:` pin — subagents inherit the orchestrator's model so
+they always authenticate on the same provider/key. (Pinning a different
+provider's model once broke dispatch with an expired-key error while the
+orchestrator's own calls worked. If a pin is ever reintroduced, verify the
+provider key first.)
+
 Rules:
 
 - Branch name: `issue-<N>/<short-description>`.
