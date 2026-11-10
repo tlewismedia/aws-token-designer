@@ -22,6 +22,7 @@ coverage/
 *.tfvars
 *.pem
 crash.log
+infra/**/backend.hcl
 
 # Logs
 *.log
