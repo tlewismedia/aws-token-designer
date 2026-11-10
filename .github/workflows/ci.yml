@@ -47,5 +47,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Re-render D2 diagrams
         run: ./scripts/render-diagram.sh
-      - name: Fail if exports are stale
-        run: git diff --exit-code -- docs/diagrams/
+      # NOTE: compare SVG only. D2's PNG output embeds an eXIf chunk
+      # (timestamps), so PNGs are never byte-stable across renders.
+      # The SVG is deterministic and is the verifiable artifact; the
+      # committed PNG is refreshed by the render script/hook for convenience.
+      # The :(glob) magic keeps * from crossing directories, so the frozen
+      # snapshots under docs/diagrams/compare/ are excluded.
+      - name: Fail if SVG exports are stale
+        run: git diff --exit-code -- ':(glob)docs/diagrams/*.svg'
