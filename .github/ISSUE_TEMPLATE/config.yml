@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture / planning docs
+    url: https://github.com/tlewismedia/aws-token-designer/tree/main/docs
+    about: Read docs/PLAN.md and docs/ARCHITECTURE.md before filing.

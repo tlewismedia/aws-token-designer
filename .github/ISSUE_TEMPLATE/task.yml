@@ -1,0 +1,114 @@
+name: Task
+description: A planned unit of work (feature, chore, spike)
+title: "[task] "
+labels: ["type:chore"]
+body:
+  - type: input
+    id: goal
+    attributes:
+      label: Goal
+      description: One sentence — what outcome does this deliver?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this exists. Link docs/PLAN.md sections, ADRs, related issues.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: In / Out of scope.
+      value: |
+        In:
+        -
+
+        Out:
+        -
+    validations:
+      required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Checkbox list of work items.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Testable statements. Each must be verifiable.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands or steps a reviewer runs to prove it works.
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: "Blocked by / Blocks, e.g. Blocked by: #3"
+      value: |
+        - Blocked by: none
+        - Blocks: none
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / Notes
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - web
+        - api
+        - infra
+        - data
+        - docs
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options:
+        - "0"
+        - "1"
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+        - "6"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - S
+        - M
+        - L
+    validations:
+      required: true
