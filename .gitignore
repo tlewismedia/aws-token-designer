@@ -19,6 +19,8 @@ coverage/
 *.tfstate
 *.tfstate.*
 *.tfplan
+*.tfvars
+*.pem
 crash.log
 
 # Logs

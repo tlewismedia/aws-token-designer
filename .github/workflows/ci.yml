@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  node:
+    name: Node (lint, typecheck, build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  terraform:
+    name: Terraform (fmt, validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+      - name: Validate Terraform configs (if any exist yet)
+        run: |
+          if git ls-files '*.tf' | grep -q .; then
+            for dir in $(git ls-files '*.tf' | xargs -n1 dirname | sort -u); do
+              echo "Validating ${dir}"
+              terraform -chdir="${dir}" init -backend=false
+              terraform -chdir="${dir}" validate
+            done
+          else
+            echo "No Terraform files yet — skipping validate."
+          fi
+
+  diagrams:
+    name: Diagrams (staleness check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Re-render D2 diagrams
+        run: ./scripts/render-diagram.sh
+      - name: Fail if exports are stale
+        run: git diff --exit-code -- docs/diagrams/
