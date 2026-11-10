@@ -1,0 +1,3 @@
+# Code owners for aws-token-designer.
+# Global owner; add narrower rules below as the repo grows.
+* @tlewismedia
