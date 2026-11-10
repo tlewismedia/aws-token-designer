@@ -1,0 +1,90 @@
+# Public Repository Policy
+
+**Status:** Active
+**Applies to:** `aws-token-designer`
+
+This repository may be public. Assume anyone can read it. **Security must not depend on secrecy.** This checklist defines what is safe to publish and what must stay private.
+
+---
+
+## Safe to Publish
+
+- Architecture docs, C4/context/container/deployment diagrams.
+- ADRs and decision rationale.
+- Application code, Terraform modules, tests, scripts.
+- Cost estimates and guardrail strategy.
+- High-level security posture and controls matrix.
+- Runbooks without secrets or account-specific details.
+- Requirements, RAID log, testing strategy.
+
+---
+
+## Never Commit
+
+Even in a private repo:
+
+- `.env`, API keys, Stripe secret/webhook secret, Stability API key.
+- Firebase service-account JSON, private keys, certificates.
+- Terraform state (`*.tfstate*`), `.terraform/`, plan output.
+- `*.tfvars` containing secrets.
+- Customer data or real user data.
+
+Use **SSM SecureString**, **GitHub Secrets**, or a private `terraform.tfvars` that is gitignored.
+
+---
+
+## Redact / Placeholder in Public Docs
+
+- AWS account ID and exact ARNs/resource IDs.
+- Personal email addresses — use `alerts@example.com`; keep the real alert address in private config.
+- Internal hostnames, IPs, private endpoints.
+- Exact billing figures if they reveal business scale.
+- Detailed threat models / known weaknesses — publish a high-level controls matrix; keep attack-path detail private.
+- Screenshots containing emails, tokens, or user data.
+
+---
+
+## Repo Hardening
+
+- [ ] `.gitignore` covers `.env*`, `.terraform/`, `*.tfstate*`, `*.tfvars` with secrets, `*.pem`, `cdk.out/`.
+- [ ] Run `gitleaks` / `trufflehog` before the first push and in CI.
+- [ ] GitHub secret scanning enabled.
+- [ ] Dependabot or Renovate enabled.
+- [ ] CodeQL enabled (free for public repos).
+- [ ] Branch protection: PR reviews and required status checks.
+- [ ] `SECURITY.md` with a vulnerability disclosure policy.
+- [ ] `LICENSE` chosen (MIT/Apache-2.0, or restrictive/private if protecting the business idea).
+- [ ] `CONTRIBUTING.md`, `CODEOWNERS`.
+- [ ] GitHub Actions uses OIDC, not long-lived AWS keys.
+- [ ] OIDC role trust policy restricted to the repo/branch.
+- [ ] Prod deployment uses a GitHub Environment with required reviewers.
+- [ ] Be careful with `pull_request_target` and fork PRs.
+- [ ] Never commit Terraform state or plan output.
+- [ ] Review logs for secret masking (`echo`, `set -x`).
+
+---
+
+## If a Secret Is Accidentally Committed
+
+1. **Rotate the secret immediately** (Stripe, Stability, AWS keys).
+2. Remove it from the working tree.
+3. Purge it from git history (`git filter-repo` or BFG).
+4. Force-push and notify collaborators.
+5. Check provider logs for misuse.
+6. Add a gitleaks rule or `.gitignore` entry to prevent recurrence.
+
+Making a repo public and then private does **not** erase forks or caches. Decide before the first push; start clean.
+
+---
+
+## Public-Safe Documentation Checklist
+
+Before publishing a doc or diagram:
+
+- [ ] No secrets, tokens, or private keys.
+- [ ] No personal email addresses or phone numbers.
+- [ ] No AWS account IDs, ARNs, or internal hostnames (or redacted).
+- [ ] No real user data or screenshots containing it.
+- [ ] No detailed attack paths or unmitigated weakness lists.
+- [ ] No internal billing figures if sensitive.
+- [ ] Links point to public resources.

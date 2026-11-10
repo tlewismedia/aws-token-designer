@@ -1,0 +1,104 @@
+# AWS Token Designer — Deployment (D2 comparison)
+# Generate: docker run --rm -v "$PWD":/work -w /work terrastruct/d2 docs/diagrams/compare/d2/aws-deployment.d2 docs/diagrams/compare/d2/aws-deployment.svg --layout elk
+# See docs/diagrams/compare/COMPARISON.md
+
+direction: right
+
+user: User {
+  shape: person
+}
+
+spa: React SPA {
+  label: "React SPA\nVite + TanStack Query"
+}
+
+stripe: Stripe\n(Checkout + webhooks) {
+  shape: cloud
+}
+
+stability: Stability AI\n(Image generation) {
+  shape: cloud
+}
+
+aws_cloud: AWS Cloud {
+  style: {
+    stroke: "#232F3E"
+    stroke-width: 2
+  }
+
+  region: Region us-west-2 {
+    style: {
+      stroke: "#7D8998"
+      stroke-dash: 4
+    }
+
+    cf: CloudFront {
+      icon: https://icons.terrastruct.com/aws/Networking%20%26%20Content%20Delivery/Amazon-CloudFront.svg
+    }
+    web: S3 web bucket {
+      icon: https://icons.terrastruct.com/aws/Storage/Amazon-Simple-Storage-Service-S3.svg
+    }
+    api: HTTP API {
+      label: "HTTP API\nstage api + JWT"
+      icon: https://icons.terrastruct.com/aws/Networking%20%26%20Content%20Delivery/Amazon-API-Gateway.svg
+    }
+    apiFn: Lambda api {
+      label: "Lambda: api\nrouter + sharp"
+      icon: https://icons.terrastruct.com/aws/Compute/AWS-Lambda.svg
+      style: {
+        fill: "#FFF2E6"
+      }
+    }
+    worker: Lambda generateWorker {
+      icon: https://icons.terrastruct.com/aws/Compute/AWS-Lambda.svg
+      style: {
+        fill: "#FFF2E6"
+      }
+    }
+    ddb: DynamoDB {
+      icon: https://icons.terrastruct.com/aws/Database/Amazon-DynamoDB.svg
+    }
+    media: S3 media bucket {
+      icon: https://icons.terrastruct.com/aws/Storage/Amazon-Simple-Storage-Service-S3.svg
+    }
+    cognito: Cognito User Pool {
+      icon: https://icons.terrastruct.com/aws/Security%2C%20Identity%2C%20%26%20Compliance/Amazon-Cognito.svg
+    }
+    ssm: SSM Parameter Store {
+      icon: https://icons.terrastruct.com/aws/Management%20%26%20Governance/AWS-Systems-Manager.svg
+    }
+    cw: CloudWatch {
+      icon: https://icons.terrastruct.com/aws/Management%20%26%20Governance/Amazon-CloudWatch.svg
+    }
+    sns: SNS {
+      icon: https://icons.terrastruct.com/aws/Application%20Integration/Amazon-Simple-Notification-Service-SNS.svg
+    }
+    budgets: AWS Budgets
+  }
+}
+
+user -> spa: HTTPS
+spa -> aws_cloud.region.cf: "HTTPS /* and /api/*"
+aws_cloud.region.cf -> aws_cloud.region.web: OAC
+aws_cloud.region.cf -> aws_cloud.region.api: "AllViewer, no cache"
+aws_cloud.region.api -> aws_cloud.region.apiFn
+aws_cloud.region.apiFn -> aws_cloud.region.ddb
+aws_cloud.region.apiFn -> aws_cloud.region.media
+aws_cloud.region.apiFn -> aws_cloud.region.ssm
+aws_cloud.region.apiFn -> aws_cloud.region.worker: async invoke {
+  style: {
+    stroke-dash: 4
+  }
+}
+aws_cloud.region.worker -> stability: HTTPS
+aws_cloud.region.worker -> aws_cloud.region.media
+aws_cloud.region.worker -> aws_cloud.region.ddb
+spa -> aws_cloud.region.cognito: Sign up / sign in
+aws_cloud.region.api -> aws_cloud.region.cognito: JWT validation
+spa -> aws_cloud.region.media: presigned PUT / GET
+spa -> stripe
+stripe -> aws_cloud.region.api: webhook
+aws_cloud.region.apiFn -> aws_cloud.region.cw
+aws_cloud.region.worker -> aws_cloud.region.cw
+aws_cloud.region.cw -> aws_cloud.region.sns
+aws_cloud.region.budgets -> aws_cloud.region.sns
