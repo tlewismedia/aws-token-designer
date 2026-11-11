@@ -7,6 +7,7 @@ export const queryKeys = {
   images: (sub: string) => ['images', sub] as const,
   sheets: (sub: string) => ['sheets', sub] as const,
   job: (sub: string, jobId: string) => ['job', sub, jobId] as const,
+  checkout: (sub: string, sessionId: string) => ['checkout', sub, sessionId] as const,
 }
 
 export function createQueryClient(): QueryClient {
