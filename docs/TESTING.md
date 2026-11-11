@@ -53,7 +53,7 @@ Against a deployed dev stage (or the Vite dev app pointed at it):
    7×9 and waits for thumbnails to load.
 
 API checks (replace `$API` with the dev `api_url` output and `$TOKEN` with a
-Cognito ID token; `$IMG` with an image id):
+Cognito ID token; `$OTHER_USERS_IMAGE` with an image id owned by another user):
 
 ```sh
 curl -i "$API/health"                                  # 200

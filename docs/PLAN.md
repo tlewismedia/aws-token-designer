@@ -355,7 +355,7 @@ all partitions before comparing ownership. (Other entities do not need it.)
 
 **Upload flow:**
 
-1. `POST /api/images/upload-url` validates metadata, creates a pending `IMAGE` item, and returns a presigned S3 PUT URL (content-type + content-length constrained) and `imageId`.
+1. `POST /api/images/upload-url` validates metadata, creates a pending `IMAGE` item, and returns a presigned S3 PUT URL (exact content-length signed; content type enforced by the request schema and magic-byte validation) and `imageId`.
 2. Browser uploads directly to S3.
 3. `POST /api/images/{id}/complete` fetches the object, validates magic bytes, strips EXIF, re-encodes, creates the 512px thumbnail with `sharp`, writes full + thumb, and marks the image `ready`. This runs synchronously in the `api` Lambda (sharp layer attached); no separate event processor.
 4. Client invalidates `['images', sub]`.
