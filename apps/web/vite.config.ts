@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import { loadEnv } from 'vite'
 import type { UserConfig } from 'vite'
 
@@ -41,6 +41,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: ['./src/test-setup.ts'],
       globals: false,
+      // Playwright specs live in e2e/ and need the real dev backend; they are
+      // run by `npm run e2e`, never by `npm test` (CI stays offline).
+      exclude: [...configDefaults.exclude, 'e2e/**'],
     },
   }
 })

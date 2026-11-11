@@ -51,5 +51,7 @@ disabled — the app still boots (auth requires the Cognito env values).
 
 - `npm run dev` — dev server with proxy
 - `npm run build` — `tsc -b && vite build`
+- `npm run e2e` — Playwright Phase 2 smoke against the dev stack (see
+  `docs/TESTING.md`)
 - `npm run test` — vitest
 - `npm run lint` / `npm run typecheck`
