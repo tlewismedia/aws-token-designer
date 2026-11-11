@@ -15,7 +15,7 @@
 import type { Image, Job } from '@aws-token-designer/shared'
 import { config } from './env.js'
 import { getRepo, type JobItem, type Repo } from './lib/db.js'
-import { emitGenerationMetrics } from './lib/metrics.js'
+import { emitGenerationFailure, emitGenerationMetrics } from './lib/metrics.js'
 import { processImage } from './lib/process-image.js'
 import { deleteObjects, putObject } from './lib/s3.js'
 import { getParameter } from './lib/ssm.js'
@@ -128,7 +128,12 @@ export async function runGenerationJob(rawEvent: unknown): Promise<void> {
     return
   }
 
+  const stage = process.env.STAGE ?? 'dev'
+
   const failSafe = async (errorCode: string): Promise<void> => {
+    // Handled failures return success, so Lambda Errors stays flat; emit the
+    // dedicated metric the generation-failures alarm watches.
+    emitGenerationFailure({ stage, errorCode })
     try {
       await repo.markJobFailed(sub, jobId, errorCode)
     } catch {
@@ -146,7 +151,6 @@ export async function runGenerationJob(rawEvent: unknown): Promise<void> {
   }
   const stabilityParam = process.env.STABILITY_PARAM_NAME
   const killSwitchParam = process.env.KILL_SWITCH_PARAM_NAME
-  const stage = process.env.STAGE ?? 'dev'
 
   // 3. Kill switch: fail closed on missing/unreadable values.
   let killSwitch: string | null
