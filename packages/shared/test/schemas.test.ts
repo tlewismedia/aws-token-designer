@@ -124,7 +124,7 @@ describe('imageSchema', () => {
 describe('meResponseSchema', () => {
   it('validates profile + sheets payload', () => {
     const me = meResponseSchema.parse({
-      profile: { sub: 's', email: 'a@b.com', credits: 10, createdAt: '2026-01-01T00:00:00.000Z' },
+      profile: { sub: 's', email: 'a@example.com', credits: 10, createdAt: '2026-01-01T00:00:00.000Z' },
       sheets: [],
     })
     expect(me.profile.credits).toBe(10)

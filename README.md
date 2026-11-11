@@ -2,7 +2,9 @@
 
 A port of the Firebase Token Designer to AWS. Users generate or upload token images, arrange up to 63 of them on a printable sheet, and print it.
 
-**Status:** Plan drafted; awaiting review. Implementation not started.
+**Status:** v1 implemented and deployed to `dev`; `prod` is Terraform-ready and
+pending the operator deploy. See the [Definition of Done](docs/PLAN.md#12-definition-of-done)
+and [RAID](docs/RAID.md) for the remaining external items.
 
 ## Links
 
@@ -14,16 +16,21 @@ A port of the Firebase Token Designer to AWS. Users generate or upload token ima
 
 | Doc | Purpose |
 |---|---|
-| [`PRE_PLANNING.md`](PRE_PLANNING.md) | Discussion record and decision log |
-| [`docs/PLAN.md`](docs/PLAN.md) | Official implementation plan |
+| [`docs/PLAN.md`](docs/PLAN.md) | Official implementation plan (phases, security design, DoD) |
 | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Functional/non-functional requirements (FR/NFR) |
-| [`docs/RAID.md`](docs/RAID.md) | Risks, assumptions, issues, dependencies |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture document and diagrams |
+| [`docs/TERRAFORM.md`](docs/TERRAFORM.md) | Terraform primer, environments, state, CI plan job |
+| [`docs/COSTS.md`](docs/COSTS.md) | Monthly cost estimate, guardrails, how to check spend |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model, controls checklist, secret handling |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Alert response, kill switch, rollback, on-call checks |
+| [`docs/TESTING.md`](docs/TESTING.md) | Automated checks, E2E, alarm drill, prod smoke, rollback drill |
+| [`docs/RAID.md`](docs/RAID.md) | Risks, assumptions, issues, dependencies |
 | [`docs/PUBLIC_SAFE.md`](docs/PUBLIC_SAFE.md) | Public repository policy and checklist |
 | [`docs/adr/README.md`](docs/adr/README.md) | Architecture Decision Records index and template |
 | [`docs/AGENTS.md`](docs/AGENTS.md) | Agent orchestration rules (implementer/reviewer workflow) |
-| [`docs/TESTING.md`](docs/TESTING.md) | Automated checks, manual smoke checklist, deployed-dev status |
 | [`docs/diagrams/README.md`](docs/diagrams/README.md) | Diagram generation and polish workflow |
+| [`PRE_PLANNING.md`](PRE_PLANNING.md) | Discussion record and decision log |
+| [`SECURITY.md`](SECURITY.md) | Vulnerability disclosure policy |
 
 ## Planned Stack
 
@@ -38,10 +45,10 @@ A port of the Firebase Token Designer to AWS. Users generate or upload token ima
 - **IaC:** Terraform >= 1.10
 - **Region:** us-west-2
 
-## Deploy (dev)
+## Deploy
 
-Infrastructure is Terraform in `infra/envs/dev`; the SPA is built and published
-to the CloudFront-fronted S3 bucket by a script.
+Infrastructure is Terraform in `infra/envs/<env>` (`dev` or `prod`); the SPA is
+built and published to the CloudFront-fronted S3 bucket by a script.
 
 ```sh
 # 1. Infrastructure (see docs/TERRAFORM.md for bootstrap/backend setup).
@@ -49,14 +56,20 @@ terraform -chdir=infra/envs/dev init -backend-config=backend.hcl
 terraform -chdir=infra/envs/dev apply
 
 # 2. Build + deploy the SPA, then invalidate /index.html.
-./scripts/deploy-web.sh
+./scripts/deploy-web.sh          # dev (default)
+./scripts/deploy-web.sh prod     # prod
 # prints https://<distribution>.cloudfront.net
 ```
 
 The SPA and API share that one origin (`/api/*` is proxied by CloudFront), so
-there is no API CORS configuration (the media bucket has a CORS rule for presigned browser uploads) or build-time API URL. Verification commands and
-`E2E_BASE_URL` (run Playwright against the deployed site) are in
-[`docs/TESTING.md`](docs/TESTING.md).
+there is no API CORS configuration (the media bucket has a CORS rule for presigned browser uploads) or build-time API URL. Verification commands,
+`E2E_BASE_URL` (run Playwright against the deployed site), the alarm/budget
+drill, prod smoke, and rollback drill are in
+[`docs/TESTING.md`](docs/TESTING.md) and [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+
+Production stateful resources are protected against destruction (DynamoDB and
+Cognito native deletion protection, S3 `prevent_destroy`); see
+[`docs/TERRAFORM.md`](docs/TERRAFORM.md#prevent_destroy--deletion-protection).
 
 ## Diagrams
 

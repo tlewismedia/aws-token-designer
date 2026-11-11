@@ -35,8 +35,8 @@ One AWS object managed by Terraform. Examples in this stack:
 Terraform's record of what it created (a JSON snapshot per environment).
 Commands read state to plan the smallest change that reaches the config.
 
-- Separate state per env: `dev` key `dev/terraform.tfstate`
-  (prod gets its own env dir + key in Phase 6)
+- Separate state per env: `dev` key `dev/terraform.tfstate`, `prod` key
+  `prod/terraform.tfstate` (same bucket; `infra/envs/prod/backend.hcl.example`)
 - Never hand-edit state; inspect with `terraform show` / `terraform state list`
 - State may contain IDs/ARNs but **never secret values** in this stack —
   SSM values are created out-of-band (see "SSM secrets" below)
@@ -50,9 +50,11 @@ Terraform >= 1.10).
 - `infra/envs/dev/backend.tf` — intentionally an **empty** `backend "s3" {}`
   block. Backend blocks take no variables, so real values are injected at
   `init` time from a gitignored file
-- `infra/envs/dev/backend.hcl.example` — copy to `backend.hcl` (gitignored)
-  and fill in the real bucket name from the bootstrap output
+- `infra/envs/prod/backend.hcl.example` — copy to `backend.hcl` (gitignored)
+  and fill in the real bucket name from the bootstrap output; the key is
+  `prod/terraform.tfstate`
 - Init: `terraform -chdir=infra/envs/dev init -backend-config=backend.hcl`
+  (same pattern for `prod`)
 
 ## Module
 
@@ -74,8 +76,9 @@ Envs compose modules; modules never hardcode the stage.
   the same-origin `/api/*` proxy (see "Phase 5 additions" below)
 - `infra/modules/monitoring/` — SNS topic + email subscription
   (`var.alert_email`, placeholder `alerts@example.com`), monthly budget with
-  $1/$5/$10/$25 thresholds, Cost Anomaly Detection monitor + low-threshold
-  ($5 impact) subscription
+  $1/$5/$10/$25 thresholds, and the CloudWatch alarm matrix (AI count/cost,
+  API 5xx, Lambda errors/throttles, DynamoDB throttles — see "Phase 6
+  additions")
 - Wiring: `infra/envs/dev/main.tf` calls every module with shared tags
 
 ## Plan / Apply
@@ -93,15 +96,49 @@ terraform -chdir=infra/envs/dev plan -out=tfplan
 terraform -chdir=infra/envs/dev apply tfplan
 ```
 
-CI runs `terraform fmt -check` + `validate` + `plan` on dev (see
-docs/PLAN.md section 9). Manual `apply` first; GitHub Actions OIDC later.
+CI runs `terraform fmt -check` + `validate` for every module and both envs;
+an optional OIDC job plans `dev` when the repo variable `AWS_PLAN_ROLE_ARN` is
+set (see "CI Terraform plan" below). Manual `apply` first.
 
-## prevent_destroy
+## CI Terraform plan (optional)
 
-A guard flag that makes `terraform destroy` refuse to delete a resource.
-Dev resources are destroyable (no flag), so `destroy` works for cleanup.
-Prod (Phase 6) will set `prevent_destroy = true` on stateful resources
-(table, buckets) — see docs/ARCHITECTURE.md section 7.2.
+`.github/workflows/ci.yml` has a `terraform-plan` job that **skips unless**
+these repository variables are configured (Settings → Secrets and variables →
+Actions → Variables):
+
+| Variable | Purpose |
+|---|---|
+| `AWS_PLAN_ROLE_ARN` | OIDC role assumed by `aws-actions/configure-aws-credentials`. Must trust this repository/branch and have read access to the state bucket plus read-only AWS APIs for refresh. |
+| `TF_STATE_BUCKET` | State bucket name from `infra/bootstrap`. |
+| `TF_STATE_KEY` | State key, normally `dev/terraform.tfstate`. |
+| `TF_STATE_REGION` | State bucket region (defaults to `us-west-2`). |
+
+The job never applies. It builds the API bundles and a placeholder sharp layer
+so `archive_file` can hash inputs, then runs `init` with `-backend-config`
+flags and `plan` for `infra/envs/dev`. Without `AWS_PLAN_ROLE_ARN` the job is
+skipped, so forks stay green without AWS credentials. Keep it non-required —
+Playwright E2E is intentionally not in CI either.
+
+## prevent_destroy / deletion protection
+
+Prod stateful resources must survive an accidental `terraform destroy`; dev is
+allowed to be torn down.
+
+**Terraform limitation:** `lifecycle.prevent_destroy` accepts **only literal
+values** (variables/locals are rejected: "Variables may not be used here").
+The requested "pass a module variable" pattern therefore cannot drive it. The
+modules expose `prevent_destroy` (default `false`) and use the closest valid
+mechanism:
+
+| Module | Mechanism |
+|---|---|
+| `dynamodb` | `deletion_protection_enabled = var.prevent_destroy` (native DynamoDB protection; prod `true`). |
+| `cognito` | `deletion_protection = var.prevent_destroy ? "ACTIVE" : "INACTIVE"` (native user-pool protection; prod `true`). |
+| `storage` | S3 has no native deletion protection and `lifecycle` cannot read the variable, so both buckets carry a literal `lifecycle { prevent_destroy = true }`. This protects dev too. To tear dev down, temporarily remove that line (or remove the buckets from state and delete them manually). |
+
+`infra/envs/prod` passes `prevent_destroy = true` to all three modules. Keeping
+the input in the module API documents intent and leaves the door open if
+Terraform later permits expressions in `lifecycle`.
 
 ## Bootstrap
 
@@ -154,10 +191,10 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 
 ## Deferred to later phases
 
-- `infra/envs/prod/` — Phase 6
 - Custom domain + ACM certificate + Route 53 alias — later (the distribution
   already outputs `distribution_hosted_zone_id` for that step)
-- CloudWatch Lambda/API alarms beyond the Phase 3 AI alarms — Phase 6
+- Cost Anomaly Detection — blocked by the account quota (a DIMENSIONAL monitor
+  already exists); revisit if the quota is raised
 
 ## Phase 2 additions
 
@@ -329,3 +366,41 @@ default URL (PLAN 7.4, ADR-0003). No custom domain, ACM certificate, or Route
   `/index.html`. The Playwright smoke can target the deployed URL with
   `E2E_BASE_URL="$(terraform -chdir=infra/envs/dev output -raw web_url)" npm run e2e`
   (no local Vite server is started). See docs/TESTING.md.
+
+## Phase 6 additions (hardening, docs, prod)
+
+- **`infra/envs/prod/`** — same module composition as dev, `stage = "prod"`,
+  state key `prod/terraform.tfstate`, `alert_email` placeholder (real value
+  passed at apply), `web_origin = ""`, `media_allowed_origins = []` (only the
+  CloudFront origin is allowed), `reserved_concurrency = -1` (account limit),
+  and `prevent_destroy = true` for dynamodb/storage/cognito.
+- **Log retention** — `infra/modules/lambda` and `infra/modules/api` take
+  `log_retention_days` (default 7). Prod passes 30 for both Lambda log groups
+  and the API Gateway access log; dev keeps 7.
+- **Alarm matrix** (`infra/modules/monitoring`, all to the SNS alerts topic,
+  `period = 300`, one evaluation, threshold 1, `notBreaching`):
+
+  | Alarm suffix | Namespace / metric | Dimensions |
+  |---|---|---|
+  | `api-5xx` | `AWS/ApiGateway` `5xx` | `ApiId`, `Stage` |
+  | `api-lambda-errors` | `AWS/Lambda` `Errors` | `FunctionName=<api>` |
+  | `worker-lambda-errors` | `AWS/Lambda` `Errors` | `FunctionName=<worker>` |
+  | `api-lambda-throttles` | `AWS/Lambda` `Throttles` | `FunctionName=<api>` |
+  | `worker-lambda-throttles` | `AWS/Lambda` `Throttles` | `FunctionName=<worker>` |
+  | `dynamodb-throttled-requests` | `AWS/DynamoDB` `ThrottledRequests` | `TableName` |
+  | `generation-count-daily` | `TokenDesigner` `GenerationCount` | `Stage` (Sum > 50/day) |
+  | `estimated-ai-cost-daily` | `TokenDesigner` `EstimatedAICost` | `Stage` (Sum > $5/day) |
+
+  The monitoring module takes `api_id`, `api_lambda_name`,
+  `worker_lambda_name`, and `table_name` so dimensions always match the
+  deployed resources. The AI alarms keep the worker's EMF namespace/dimension
+  (`packages/shared/src/constants.ts`: `TokenDesigner` / `Stage`).
+- **Budget** — unchanged $25 limit with $1/$5/$10/$25 actual-spend thresholds.
+  Thresholds documented in `docs/COSTS.md`.
+- **CI** — `.github/dependabot.yml` (weekly npm + GitHub Actions) and the
+  optional OIDC dev plan job described above.
+- **Scripts** — `scripts/deploy-web.sh [dev|prod]` (or `TF_ENV`) and
+  `apps/api/src/scripts/seed-dev.ts` (`TF_ENV`, default `dev`) are
+  environment-aware.
+- **Docs** — `docs/COSTS.md`, `docs/SECURITY.md`, `docs/RUNBOOK.md`, and the
+  Phase 6 material in `docs/TESTING.md`/`docs/RAID.md`.

@@ -523,23 +523,29 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 
 ### 8.2 Controls Checklist
 
-- [ ] No secrets in repo; gitleaks/trufflehog clean.
-- [ ] Secrets in SSM SecureString; no secret values in Terraform state.
-- [ ] All API routes authenticated except `/health` and `/webhooks/stripe`.
-- [ ] JWT `sub` used for identity; path IDs checked against ownership.
-- [ ] Stripe session ownership verified before status return.
-- [ ] Webhook signature verified; idempotent fulfillment.
-- [ ] zod validation on every handler; style allowlist; length caps.
-- [ ] Presigned upload constraints (type, size); sharp re-encode strips EXIF.
-- [ ] S3 public access blocked; OAC; short URL TTLs.
-- [ ] Least-privilege IAM per Lambda.
-- [ ] CORS not needed (same-origin); Vite proxy in dev.
-- [ ] CSP/security headers via CloudFront.
-- [ ] No stack traces/internal details in client errors.
-- [ ] CloudTrail management events enabled.
-- [ ] Dependency scanning (Dependabot/Renovate, `npm audit`).
-- [ ] Branch protection, secret scanning, CodeQL if public.
-- [ ] Daily generation cap and kill switch.
+> Status as of Phase 6 (2026-11-11). Full control evidence lives in
+> [`docs/SECURITY.md`](SECURITY.md). The two unchecked items are GitHub/AWS
+> account settings, not code gaps.
+
+- [x] No secrets in repo; gitleaks/trufflehog clean.
+- [x] Secrets in SSM SecureString; no secret values in Terraform state.
+- [x] All API routes authenticated except `/health` and `/webhooks/stripe`.
+- [x] JWT `sub` used for identity; path IDs checked against ownership.
+- [x] Stripe session ownership verified before status return.
+- [x] Webhook signature verified; idempotent fulfillment.
+- [x] zod validation on every handler; style allowlist; length caps.
+- [x] Presigned upload constraints (type, size); sharp re-encode strips EXIF.
+- [x] S3 public access blocked; OAC; short URL TTLs.
+- [x] Least-privilege IAM per Lambda.
+- [x] CORS not needed (same-origin); Vite proxy in dev.
+- [x] CSP/security headers via CloudFront.
+- [x] No stack traces/internal details in client errors.
+- [ ] CloudTrail management events enabled. — Account-level setting, not managed
+  by this repo; operator to confirm a multi-region trail.
+- [x] Dependency scanning (Dependabot/Renovate, `npm audit`).
+- [ ] Branch protection, secret scanning, CodeQL if public. — GitHub
+  repository settings; see `docs/PUBLIC_SAFE.md`.
+- [x] Daily generation cap and kill switch.
 
 ---
 
@@ -678,15 +684,34 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 
 ## 12. Definition of Done
 
-- [ ] All FRs pass the E2E suite.
-- [ ] NFRs are measured/monitored; alarms configured.
-- [ ] `terraform plan` is clean; no drift; state is remote and locked.
-- [ ] No secrets in repo; gitleaks clean; secret scanning enabled.
-- [ ] Unit, integration, and E2E tests pass; CI green.
-- [ ] Docs complete and linked from `README.md`.
-- [ ] Budgets and anomaly detection active.
-- [ ] Runbook reviewed and rollback tested.
-- [ ] Prod deployed and smoke-tested.
+> Status as of Phase 6 (2026-11-11). Unchecked items are genuinely pending, not
+> forgotten; the reason follows each.
+
+- [ ] All FRs pass the E2E suite. — Register/login, upload, sheet, print, and
+  logout pass against dev. Generation success and live checkout need operator
+  keys (#29/#34); the E2E run currently exercises their disabled/failure paths.
+- [x] NFRs are measured/monitored; alarms configured. — API 5xx, Lambda
+  errors/throttles, DynamoDB throttles, AI count/cost alarms, and the budget are
+  wired to SNS; the alarm drill is run by the operator after apply.
+- [x] `terraform plan` is clean; no drift; state is remote and locked. — Prod
+  plan is clean (67 creates on an empty state); dev uses S3 state with native
+  locking and no drift beyond this phase's alarm additions.
+- [ ] No secrets in repo; gitleaks clean; secret scanning enabled. — gitleaks
+  is clean and configured pre-commit; GitHub secret scanning is a repository
+  setting (see `docs/PUBLIC_SAFE.md`).
+- [ ] Unit, integration, and E2E tests pass; CI green. — All suites are green
+  locally and E2E is green against dev; CI runs on the PR (E2E stays manual by
+  design because it needs live AWS).
+- [x] Docs complete and linked from `README.md`. — COSTS, SECURITY, RUNBOOK,
+  TESTING, TERRAFORM, ARCHITECTURE, PLAN, REQUIREMENTS, RAID, AGENTS.
+- [ ] Budgets and anomaly detection active. — The budget is active; Cost
+  Anomaly Detection is blocked by the account quota (a monitor already exists),
+  so the budget plus alarms are the guardrails.
+- [ ] Runbook reviewed and rollback tested. — The runbook is written; the
+  rollback drill is scheduled/run by the operator (commands in
+  `docs/RUNBOOK.md`).
+- [ ] Prod deployed and smoke-tested. — `infra/envs/prod` exists and plans
+  cleanly (not applied); deploy/smoke is the operator step after review.
 
 ---
 

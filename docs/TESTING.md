@@ -363,6 +363,120 @@ SPA deep links use a CloudFront Function on the default behavior, not
 `custom_error_response`; that deliberate deviation keeps API 401/403/404
 statuses intact. See "Phase 5 additions" in docs/TERRAFORM.md.
 
+## Alarm and budget drill (Phase 6)
+
+All alarms route to the SNS alerts topic and therefore to `alert_email`.
+Trigger each one directly instead of waiting for a metric breach (CloudWatch
+sends the action on the `ALARM` transition):
+
+```sh
+STAGE=dev REGION=us-west-2
+for name in \
+  api-5xx api-lambda-errors worker-lambda-errors \
+  api-lambda-throttles worker-lambda-throttles dynamodb-throttled-requests \
+  generation-count-daily estimated-ai-cost-daily; do
+    alarm="token-designer-${STAGE}-${name}"
+    aws cloudwatch set-alarm-state --alarm-name "$alarm" \
+      --state-value ALARM --state-reason "test trigger" --region "${REGION}"
+    sleep 2
+    aws cloudwatch set-alarm-state --alarm-name "$alarm" \
+      --state-value OK --state-reason "drill complete" --region "${REGION}"
+  done
+
+# Confirm the expected state transitions/actions were recorded.
+aws cloudwatch describe-alarm-history --alarm-name \
+  "token-designer-${STAGE}-api-5xx" --history-item-type StateUpdate \
+  --region "${REGION}" --max-items 5
+```
+
+The budget cannot be forced with `set-alarm-state`; verify delivery by
+temporarily lowering the amount/threshold with `aws budgets update-budget`,
+waiting for the next evaluation, and restoring it. Record the drill date and
+the email received for each alarm in the incident log
+([`docs/RUNBOOK.md`](RUNBOOK.md)).
+
+## Production smoke sequence
+
+Prod is deployed with the same modules as dev (`infra/envs/prod`, state key
+`prod/terraform.tfstate`). After the first prod apply and SPA deploy:
+
+```sh
+# 0. Public endpoints
+WEB=$(terraform -chdir=infra/envs/prod output -raw web_url)
+API=$(terraform -chdir=infra/envs/prod output -raw api_url)
+curl -sI "$WEB/"                         # 200 + security headers
+curl -s "$WEB/api/health"                # {"status":"ok"}
+curl -s -o /dev/null -w "%{http_code}\n" "$WEB/api/me"   # 401
+curl -s -o /dev/null -w "%{http_code}\n" "$WEB/login"    # 200 (SPA fallback)
+curl -s -o /dev/null -w "%{http_code}\n" "$WEB/return?session_id=cs_test_x"  # 200
+
+# 1. Browser journey against the deployed prod SPA (register → upload →
+#    generate → sheet → print → checkout return).
+E2E_BASE_URL="$WEB" E2E_EMAIL="e2e-$(date +%s)@example.com" npm run e2e
+```
+
+What is verified without operator secrets:
+
+- register/login/logout, profile + credits, SPA deep links, security headers;
+- image upload (presigned PUT), thumbnail, gallery, add/remove/clear/delete;
+- print (Playwright stubs `window.print`);
+- generation route returns `202` and the job reaches `failed` with
+  `GENERATION_DISABLED`/`GENERATION_FAILED` (no Stability key yet);
+- checkout returns `503 BILLING_DISABLED` (no Stripe secret yet) and the
+  return page renders its unknown/disabled state.
+
+What **needs operator keys** (backlog #29 Stability, #34 Stripe): a successful
+generation image and a real Stripe test checkout/webhook. Document the date and
+the exact checks run when prod is smoke-tested; do not claim those two paths
+green until the SSM SecureStrings exist.
+
+```sh
+# Post-smoke cleanup for the synthetic E2E user (if the AWS CLI is available),
+# per the browser E2E cleanup notes above.
+aws cognito-idp admin-delete-user --user-pool-id "$(terraform -chdir=infra/envs/prod output -raw user_pool_id)" \
+  --username "e2e-...@example.com" --region us-west-2
+```
+
+## Rollback drill
+
+Rolling back the web build is the least invasive response; Lambda rollback
+rebuilds the previous commit against the same Terraform state. The full
+procedure and caveats are in [`docs/RUNBOOK.md`](RUNBOOK.md) ("Rollback").
+The drill itself:
+
+```sh
+# 1. Record the current deploy commit; deploy the one before it to dev.
+CURRENT=$(git rev-parse --short HEAD)
+PREV=$(git rev-parse --short HEAD~1)
+git checkout "$PREV" && ./scripts/deploy-web.sh dev
+
+WEB=$(terraform -chdir=infra/envs/dev output -raw web_url)
+curl -sI "$WEB/" | head -3
+curl -sI "$WEB/api/health" | head -3
+
+# 2. Restore the current build and redeploy.
+git checkout "$CURRENT" && ./scripts/deploy-web.sh dev
+```
+
+Both deploys should print the same `web_url` with a 200 SPA and a 200
+`/api/health`; the hashed asset filenames change between builds and
+`/index.html` is invalidated each time. Rerun the browser E2E after the second
+deploy.
+
+## CI vs. manual checks
+
+| Check | CI | Manual |
+|---|---|---|
+| lint, typecheck, build | yes (Node job) | — |
+| unit/component tests | yes (Node job) | — |
+| DynamoDB Local integration suite | yes (service container) | `RUN_DDB_INTEGRATION=1 npm test --workspace @aws-token-designer/api` |
+| `terraform fmt -check` + `validate` | yes (all modules + both envs) | — |
+| `terraform plan` (dev) | optional, only when `AWS_PLAN_ROLE_ARN` is set (OIDC) | locally with `backend.hcl` |
+| diagram staleness | yes | — |
+| Playwright E2E | **no** (needs live AWS) | `E2E_BASE_URL=... npm run e2e` |
+| alarm/budget drill | **no** | runbook commands above |
+| prod smoke | **no** | commands above |
+
 ## Deployed dev status
 
 Last verified: **2026-11-11** (dev stage, after the Phase 2 deploy).
@@ -394,3 +508,13 @@ implemented and unit/integration tested. Live dev checkout/webhook verification
 is pending Stripe test-mode SecureStrings; without them the deployable paths
 are checkout `503 BILLING_DISABLED`, webhook `503`/`400`, and status
 `403`/`404`. The purchase UI remains disabled.
+
+Phase 5 (CloudFront hosting) is deployed to dev and verified (SPA, same-origin
+`/api/*`, deep links, security headers, `/index.html`-only invalidation).
+
+Phase 6 (this branch): unit/component/integration suites are green locally and
+in CI; the prod environment plans cleanly (67 creates — see the PR notes) and
+is **not applied**; the new alarm matrix is defined but the drill is run by the
+operator after apply. Prod smoke is limited to the no-key paths listed above
+(backlog #29/#34). Update this section after the prod apply and the alarm/budget
+drill, with dates and results.

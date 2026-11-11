@@ -88,3 +88,9 @@ Before publishing a doc or diagram:
 - [ ] No detailed attack paths or unmitigated weakness lists.
 - [ ] No internal billing figures if sensitive.
 - [ ] Links point to public resources.
+
+## Verification log
+
+| Date | Scope | Result |
+|---|---|---|
+| 2026-11-11 | Whole repo (tracked files + working tree) before Phase 6 | `git grep` for the account ID, 12-digit ARNs, live keys, and non-example emails found none in tracked files; `gitleaks detect --source . --no-git --redact` reported no leaks. Only placeholders (`sk_test_...`, `whsec_test_secret_123`, `alerts@example.com`, `dev-user@example.com`) remain. Re-run this log whenever docs or fixtures change. |
