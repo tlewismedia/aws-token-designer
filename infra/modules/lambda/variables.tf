@@ -25,6 +25,12 @@ variable "sharp_layer_dir" {
   type        = string
 }
 
+variable "reserved_concurrency" {
+  description = "Reserved concurrent executions for the api Lambda (-1 = unreserved). Reserving requires an account concurrency limit comfortably above the reservation; the dev account's limit is 10, so dev leaves this unreserved."
+  type        = number
+  default     = -1
+}
+
 variable "table_name" {
   description = "DynamoDB single-table name (env var TABLE_NAME)."
   type        = string

@@ -161,8 +161,12 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 ## Phase 2 additions
 
 - `infra/modules/lambda/` — `api` Lambda (nodejs22.x, arm64, 1024 MB), least-
-  privilege IAM (table + media bucket + logs), log group, reserved
-  concurrency 10, and the `sharp` Lambda layer. The bundle
+  privilege IAM (table + media bucket + logs), log group, and the `sharp`
+  Lambda layer. Reserved concurrency is configurable
+  (`reserved_concurrency`, default `-1` = unreserved): PLAN 7.6 asks for 10,
+  but the dev account's Lambda concurrency limit is 10, leaving no headroom
+  for a reservation — `infra/envs/dev` therefore runs unreserved, and prod
+  should set 10 once the quota allows. The bundle
   (`apps/api/dist/index.mjs`) comes from `scripts/build-lambda.sh`; the layer
   content (`apps/api/dist/sharp-layer`) from `scripts/build-sharp-layer.sh`
   (Docker, arm64, glibc base). Both artifacts must exist before `apply`.
