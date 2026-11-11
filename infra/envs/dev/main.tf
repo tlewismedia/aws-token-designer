@@ -71,8 +71,8 @@ module "lambda" {
   stage   = var.stage
   tags    = local.tags
 
-  source_dist     = "${path.root}/../../apps/api/dist"
-  sharp_layer_dir = "${path.root}/../../apps/api/dist/sharp-layer"
+  source_dist     = "${path.root}/../../../apps/api/dist"
+  sharp_layer_dir = "${path.root}/../../../apps/api/dist/sharp-layer"
 
   table_name        = module.dynamodb.table_name
   table_arn         = module.dynamodb.table_arn
