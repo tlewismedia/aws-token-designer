@@ -151,7 +151,25 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 ## Deferred to later phases
 
 - `infra/envs/prod/` — Phase 6
-- Lambda / API Gateway / CloudFront resources — Phases 2 and 5
+- CloudFront resources — Phase 5
   (the web bucket's OAC policy waits for the distribution:
   `TODO` + `var.cloudfront_distribution_arn` in `infra/modules/storage/`)
+- generateWorker Lambda — Phase 3 (the `infra/modules/lambda` module currently
+  holds only the `api` function and the shared `sharp` layer)
 - CloudWatch alarms beyond budgets/anomaly — Phase 6 with the Lambdas
+
+## Phase 2 additions
+
+- `infra/modules/lambda/` — `api` Lambda (nodejs22.x, arm64, 1024 MB), least-
+  privilege IAM (table + media bucket + logs), log group, reserved
+  concurrency 10, and the `sharp` Lambda layer. The bundle
+  (`apps/api/dist/index.mjs`) comes from `scripts/build-lambda.sh`; the layer
+  content (`apps/api/dist/sharp-layer`) from `scripts/build-sharp-layer.sh`
+  (Docker, arm64, glibc base). Both artifacts must exist before `apply`.
+- `infra/modules/api/` — HTTP API, stage `api`, Cognito JWT authorizer
+  (issuer derived from the user pool id), Lambda proxy integration, access
+  logs, throttling 10 rps / burst 20.
+- `infra/modules/dynamodb/` — added the `byId` GSI (hash `entityId`, ALL
+  projection). Image/sheet items carry `entityId` so the API can answer 403
+  (owned by another user) vs 404 (missing) for cross-user ids.
+- Dev outputs added: `api_url`, `api_lambda_name`, `sharp_layer_arn`.
