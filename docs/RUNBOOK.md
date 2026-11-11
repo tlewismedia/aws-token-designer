@@ -152,14 +152,14 @@ escalate.
 ## Deployment
 
 ```sh
-# 1. Infrastructure (review the plan first)
+# 1. Lambda bundles + sharp layer (Terraform zips them; they must exist first)
+./scripts/build-lambda.sh
+./scripts/build-sharp-layer.sh   # requires Docker; arm64
+
+# 2. Infrastructure (review the plan first)
 terraform -chdir=infra/envs/${STAGE} init -backend-config=backend.hcl
 terraform -chdir=infra/envs/${STAGE} plan -out=tfplan
 terraform -chdir=infra/envs/${STAGE} apply tfplan
-
-# 2. Lambda bundles + sharp layer
-./scripts/build-lambda.sh
-./scripts/build-sharp-layer.sh   # requires Docker; arm64
 
 # 3. SPA
 ./scripts/deploy-web.sh ${STAGE}  # dev by default; prod supported
