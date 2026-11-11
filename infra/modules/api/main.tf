@@ -53,6 +53,11 @@ locals {
     "DELETE /sheets/{id}"                = true
     "POST /sheets/{id}/images"           = true
     "DELETE /sheets/{id}/images/{index}" = true
+    "POST /checkout/session"             = true
+    "GET /checkout/session/{id}"         = true
+    # Stripe webhook: no Cognito authorizer; signature verification is its auth
+    # (ADR-0007). Reached at <execute-api>/api/webhooks/stripe.
+    "POST /webhooks/stripe" = false
   }
 }
 
