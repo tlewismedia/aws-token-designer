@@ -44,6 +44,8 @@ locals {
     "GET /images"                        = true
     "POST /images/upload-url"            = true
     "POST /images/{id}/complete"         = true
+    "POST /images/generate"              = true
+    "GET /jobs/{jobId}"                  = true
     "DELETE /images/{id}"                = true
     "GET /sheets"                        = true
     "POST /sheets"                       = true

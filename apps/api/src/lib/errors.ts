@@ -33,5 +33,8 @@ export const conflict = (message = 'Conflict'): ApiError =>
 export const payloadTooLarge = (message = 'File exceeds the 10 MB limit'): ApiError =>
   new ApiError(413, 'PAYLOAD_TOO_LARGE', message)
 
+export const rateLimited = (message = 'Daily generation limit reached'): ApiError =>
+  new ApiError(429, 'RATE_LIMITED', message)
+
 export const internalError = (message = 'Internal server error'): ApiError =>
   new ApiError(500, 'INTERNAL_ERROR', message)

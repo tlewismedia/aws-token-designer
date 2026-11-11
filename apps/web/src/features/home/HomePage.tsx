@@ -19,7 +19,7 @@ export default function HomePage() {
       </p>
       <ul className="marketing-list">
         <li>Upload your own art (PNG, JPEG, WebP up to 10 MB)</li>
-        <li>AI-generated tokens (coming soon)</li>
+        <li>AI-generated tokens from a prompt (Stability AI)</li>
         <li>7×9 print sheet — 63 tokens per page</li>
       </ul>
       <p className="marketing-cta">Sign in or register to start building your first sheet.</p>

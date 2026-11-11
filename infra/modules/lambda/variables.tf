@@ -51,6 +51,16 @@ variable "media_bucket_arn" {
   type        = string
 }
 
+variable "stability_param_name" {
+  description = "SSM parameter NAME holding the Stability key (SecureString; value created out-of-band)."
+  type        = string
+}
+
+variable "kill_switch_param_name" {
+  description = "SSM parameter NAME for the generation kill switch (String 'true' enables generation)."
+  type        = string
+}
+
 output "lambda_arn" {
   description = "ARN of the api Lambda function."
   value       = aws_lambda_function.api.arn
@@ -74,4 +84,19 @@ output "sharp_layer_arn" {
 output "role_arn" {
   description = "Execution role ARN."
   value       = aws_iam_role.api.arn
+}
+
+output "worker_lambda_arn" {
+  description = "ARN of the generateWorker Lambda function."
+  value       = aws_lambda_function.worker.arn
+}
+
+output "worker_lambda_name" {
+  description = "Name of the generateWorker Lambda function."
+  value       = aws_lambda_function.worker.function_name
+}
+
+output "worker_role_arn" {
+  description = "Execution role ARN of the generateWorker Lambda."
+  value       = aws_iam_role.worker.arn
 }

@@ -6,6 +6,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { getRequestId, requireAuth } from './lib/auth.js'
 import { ApiError, internalError } from './lib/errors.js'
 import { registerImagesRoutes } from './routes/images.js'
+import { registerJobsRoutes } from './routes/jobs.js'
 import { registerMeRoutes } from './routes/me.js'
 import { registerSheetsRoutes } from './routes/sheets.js'
 import type { ZodType, z } from 'zod'
@@ -83,6 +84,7 @@ export function createApp(options: AppOptions = {}): App {
 
   registerMeRoutes(app)
   registerImagesRoutes(app)
+  registerJobsRoutes(app)
   registerSheetsRoutes(app)
 
   return app

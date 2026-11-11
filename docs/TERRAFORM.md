@@ -154,9 +154,7 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 - CloudFront resources — Phase 5
   (the web bucket's OAC policy waits for the distribution:
   `TODO` + `var.cloudfront_distribution_arn` in `infra/modules/storage/`)
-- generateWorker Lambda — Phase 3 (the `infra/modules/lambda` module currently
-  holds only the `api` function and the shared `sharp` layer)
-- CloudWatch alarms beyond budgets/anomaly — Phase 6 with the Lambdas
+- CloudWatch Lambda/API alarms beyond the Phase 3 AI alarms — Phase 6
 
 ## Phase 2 additions
 
@@ -181,3 +179,42 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
   projection). Image/sheet items carry `entityId` so the API can answer 403
   (owned by another user) vs 404 (missing) for cross-user ids.
 - Dev outputs added: `api_url`, `api_lambda_name`, `sharp_layer_arn`.
+
+## Phase 3 additions (AI generation)
+
+- `infra/modules/lambda/` — added the `generateWorker` Lambda:
+  - `nodejs22.x`, `arm64`, 1024 MB, **timeout 120s**, same Docker-built
+    `sharp` layer as `api`.
+  - Bundle: `apps/api/dist/worker.mjs`, produced by
+    `npm run build --workspace @aws-token-designer/api` (or
+    `./scripts/build-lambda.sh`). Both `index.mjs` and `worker.mjs` must exist
+    before `apply`.
+  - Log group `/aws/lambda/token-designer-<stage>-generate-worker`, 7-day
+    retention.
+  - IAM (least privilege): table read/write + `byId` GSI query, media bucket
+    get/put/delete, `ssm:GetParameter` on exactly
+    `/token-designer/<stage>/stability/api-key` and
+    `/token-designer/<stage>/generation-enabled`, `kms:Decrypt` on the
+    **key ARN** returned by `data.aws_kms_alias.ssm` (SecureString), and logs.
+    KMS does not resolve alias ARNs in an IAM `Resource`, so the module looks
+    the AWS-managed `alias/aws/ssm` key up and grants on
+    `target_key_arn`.
+  - Env: `TABLE_NAME`, `MEDIA_BUCKET`, `STABILITY_PARAM_NAME`,
+    `KILL_SWITCH_PARAM_NAME`, `STAGE`.
+  - **No reserved concurrency** (dev account limit is 10); see PLAN §7.6.
+  - The `api` function now gets `WORKER_FUNCTION_NAME` and
+    `lambda:InvokeFunction` scoped to the worker ARN only.
+- `infra/modules/api/` — routes `POST /images/generate` and
+  `GET /jobs/{jobId}` (both JWT-authenticated).
+- `infra/modules/monitoring/` — two daily alarms wired to the existing SNS
+  alerts topic:
+  - `generation-count-daily`: `GenerationCount` (Sum, 86400s) >
+    `var.daily_generation_alarm_threshold` (default 50/day).
+  - `estimated-ai-cost-daily`: `EstimatedAICost` (Sum, 86400s) >
+    `var.daily_ai_cost_alarm_threshold_usd` (default $5/day).
+  - Namespace `TokenDesigner`, dimension `Stage=<stage>` — must match the
+    worker EMF output (`apps/api/src/lib/metrics.ts`).
+- SSM parameter names are unchanged from Phase 1
+  (`/token-designer/<stage>/stability/api-key` SecureString and
+  `/token-designer/<stage>/generation-enabled` String); only the names are in
+  Terraform.

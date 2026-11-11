@@ -4,10 +4,12 @@
 //   Profile : PK USER#<sub>  SK PROFILE            (email, credits)
 //   Image   : PK USER#<sub>  SK IMAGE#<ulid>       (entityId = ulid, status, S3 keys)
 //   Sheet   : PK USER#<sub>  SK SHEET#<ulid>       (entityId = ulid, name, images[])
+//   Job     : PK USER#<sub>  SK JOB#<ulid>         (entityId = ulid, status, imageId, prompt)
+//   Rate    : PK USER#<sub>  SK RATE#<yyyy-mm-dd>  (count, expiresAt TTL)
 //
-// Image/sheet items carry an `entityId` attribute indexed by the `byId` GSI so
-// handlers can distinguish "does not exist" (404) from "owned by someone else"
-// (403) — see the ownership checks in the routes.
+// Image/sheet/job items carry an `entityId` attribute indexed by the `byId`
+// GSI so handlers can distinguish "does not exist" (404) from "owned by
+// someone else" (403) — see the ownership checks in the routes.
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import {
@@ -19,15 +21,20 @@ import {
   DeleteCommand,
   type NativeAttributeValue,
 } from '@aws-sdk/lib-dynamodb'
-import type { Image, Profile, Sheet } from '@aws-token-designer/shared'
+import type { Image, Job, JobStatus, Profile, Sheet } from '@aws-token-designer/shared'
 import {
+  DAILY_GENERATION_CAP,
   DEFAULT_CREDITS,
   DEFAULT_SHEET_NAME,
   DEFAULT_SHEET_TEMPLATE,
+  JOB_PROCESSING_LEASE_MS,
   MAX_SHEET_TOKENS,
   PK_PREFIX,
+  RATE_TTL_DAYS,
   SK_IMAGE_PREFIX,
+  SK_JOB_PREFIX,
   SK_PROFILE,
+  SK_RATE_PREFIX,
   SK_SHEET_PREFIX,
 } from '@aws-token-designer/shared'
 import { conflict, forbidden, internalError, notFound } from './errors.js'
@@ -65,6 +72,52 @@ export interface SheetItem extends EntityItem {
   name: string
   template: string
   images: string[]
+}
+
+export interface JobItem extends EntityItem {
+  type: 'generation'
+  status: JobStatus
+  imageId: string
+  prompt: string
+  negativePrompt?: string
+  style?: Job['style']
+  error?: string
+  /** ISO timestamp of the current processing lease start. */
+  processingAt?: string
+  expiresAt?: number
+}
+
+/** Jobs carry `entityId` so the API can answer 403 vs 404 for path ids. */
+export function toJobItem(job: Job): JobItem {
+  const { sub, id, ...rest } = job
+  return stripUndefined({
+    PK: `${PK_PREFIX}${sub}`,
+    SK: `${SK_JOB_PREFIX}${id}`,
+    entityId: id,
+    ...rest,
+  }) as unknown as JobItem
+}
+
+export function jobFromItem(item: JobItem): Job {
+  return {
+    id: item.entityId,
+    sub: subFromPk(item.PK),
+    type: item.type,
+    status: item.status,
+    imageId: item.imageId,
+    prompt: item.prompt,
+    negativePrompt: item.negativePrompt,
+    style: item.style,
+    error: item.error,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    expiresAt: item.expiresAt,
+  }
+}
+
+/** UTC date key for the daily generation cap (`RATE#<yyyy-mm-dd>`). */
+export function utcDateKey(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10)
 }
 
 export function toItem(entity: Omit<Image, 'sub'> & { sub: string }): ImageItem
@@ -236,6 +289,222 @@ export class Repo {
     )
   }
 
+  // -- Jobs ------------------------------------------------------------------
+
+  async putJob(job: Job): Promise<void> {
+    await this.doc.send(new PutCommand({ TableName: this.table, Item: toJobItem(job) }))
+  }
+
+  /** Direct lookup inside the caller's partition (used by the worker). */
+  async getJob(sub: string, jobId: string): Promise<JobItem | null> {
+    const res = await this.doc.send(
+      new GetCommand({
+        TableName: this.table,
+        Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+      }),
+    )
+    return (res.Item as JobItem | undefined) ?? null
+  }
+
+  /** Cross-partition lookup via the `byId` GSI (403 vs 404 for GET /jobs). */
+  async findJobById(entityId: string): Promise<JobItem | null> {
+    const res = await this.doc.send(
+      new QueryCommand({
+        TableName: this.table,
+        IndexName: 'byId',
+        KeyConditionExpression: 'entityId = :id',
+        ExpressionAttributeValues: { ':id': entityId },
+        Limit: 1,
+      }),
+    )
+    return (res.Items?.[0] as JobItem | undefined) ?? null
+  }
+
+  async getJobForSub(sub: string, jobId: string): Promise<JobItem> {
+    const item = await this.findJobById(jobId)
+    if (!item) throw notFound('Job not found')
+    if (item.PK !== `${PK_PREFIX}${sub}`) throw forbidden('Job belongs to another user')
+    return item
+  }
+
+  /**
+   * Idempotency gate for the worker: pending → processing. A second attempt
+   * while the lease is fresh no-ops; a retry may reclaim a `processing` job
+   * whose `processingAt` is older than JOB_PROCESSING_LEASE_MS (150 s: above
+   * the 120 s worker timeout, below Lambda's ~180 s first async retry), so a
+   * timed-out job is recovered by the retry rather than staying stuck until
+   * TTL. Returns false when another attempt holds a fresh lease or the job is
+   * terminal.
+   */
+  async claimJobForProcessing(sub: string, jobId: string): Promise<boolean> {
+    const now = nowIso()
+    const staleBefore = new Date(Date.now() - JOB_PROCESSING_LEASE_MS).toISOString()
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression: 'SET #status = :processing, processingAt = :now, updatedAt = :now',
+          // attribute_not_exists covers jobs claimed before processingAt was
+          // introduced; they are treated as stale and reclaimable.
+          ConditionExpression:
+            '#status = :pending OR (#status = :processing AND (attribute_not_exists(processingAt) OR processingAt < :staleBefore))',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':processing': 'processing',
+            ':pending': 'pending',
+            ':now': now,
+            ':staleBefore': staleBefore,
+          },
+        }),
+      )
+      return true
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false
+      throw err
+    }
+  }
+
+  /**
+   * Worker-only success transition. Conditional so an older/late attempt (or
+   * an API-side invoke failure) can never flip a terminal job; a conditional
+   * failure is a logged no-op.
+   */
+  async markJobSucceeded(sub: string, jobId: string, imageId: string): Promise<void> {
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression:
+            'SET #status = :status, imageId = :imageId, updatedAt = :now REMOVE #error',
+          ConditionExpression: '#status = :processing',
+          ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+          ExpressionAttributeValues: {
+            ':status': 'succeeded',
+            ':imageId': imageId,
+            ':processing': 'processing',
+            ':now': nowIso(),
+          },
+        }),
+      )
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) {
+        logJobTransitionNoop(jobId, 'succeeded')
+        return
+      }
+      throw err
+    }
+  }
+
+  /**
+   * Pending-only failure transition used by the API when the async invoke
+   * itself throws. If Lambda actually accepted the invocation and only the
+   * response was lost, the worker may already be processing; this no-ops so
+   * it cannot preempt a subsequent worker success. Conditional failure is a
+   * logged no-op.
+   */
+  async markPendingJobFailed(
+    sub: string,
+    jobId: string,
+    errorCode: string,
+  ): Promise<void> {
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression: 'SET #status = :status, #error = :error, updatedAt = :now',
+          ConditionExpression: '#status = :pending',
+          ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+          ExpressionAttributeValues: {
+            ':status': 'failed',
+            ':error': errorCode,
+            ':pending': 'pending',
+            ':now': nowIso(),
+          },
+        }),
+      )
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) {
+        logJobTransitionNoop(jobId, 'pending-failed')
+        return
+      }
+      throw err
+    }
+  }
+
+  /**
+   * Terminal-safe failure transition. Only pending/processing jobs can fail;
+   * a late API invoke failure therefore cannot overwrite a job the worker
+   * already marked succeeded. Conditional failure is a logged no-op.
+   */
+  async markJobFailed(sub: string, jobId: string, errorCode: string): Promise<void> {
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression: 'SET #status = :status, #error = :error, updatedAt = :now',
+          ConditionExpression: '#status IN (:pending, :processing)',
+          ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+          ExpressionAttributeValues: {
+            ':status': 'failed',
+            ':error': errorCode,
+            ':pending': 'pending',
+            ':processing': 'processing',
+            ':now': nowIso(),
+          },
+        }),
+      )
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) {
+        logJobTransitionNoop(jobId, 'failed')
+        return
+      }
+      throw err
+    }
+  }
+
+  // -- Daily generation cap --------------------------------------------------
+
+  /**
+   * Atomically consume one generation from the user's daily allowance.
+   * Returns false when the cap is already reached. The condition is evaluated
+   * server-side, so two racing requests cannot both exceed the cap.
+   *
+   * Cap accounting: the increment happens before job creation/invoke, so a
+   * failed submission still consumes one slot. That is deliberate — it keeps
+   * the cap binding even when a caller repeatedly invokes a failing worker.
+   */
+  async consumeDailyGeneration(
+    sub: string,
+    date: string = utcDateKey(),
+  ): Promise<boolean> {
+    const expiresAt = Math.floor(Date.now() / 1000) + RATE_TTL_DAYS * 24 * 60 * 60
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_RATE_PREFIX}${date}` },
+          UpdateExpression: 'SET expiresAt = if_not_exists(expiresAt, :exp) ADD #count :one',
+          ConditionExpression: 'attribute_not_exists(#count) OR #count < :max',
+          ExpressionAttributeNames: { '#count': 'count' },
+          ExpressionAttributeValues: {
+            ':one': 1,
+            ':max': DAILY_GENERATION_CAP,
+            ':exp': expiresAt,
+          },
+          ReturnValues: 'UPDATED_NEW',
+        }),
+      )
+      return true
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false
+      throw err
+    }
+  }
+
   // -- Sheets ----------------------------------------------------------------
 
   async putSheet(sheet: Sheet): Promise<void> {
@@ -397,6 +666,22 @@ export class Repo {
     )
     return (res.Items as EntityItem[] | undefined) ?? []
   }
+}
+
+/** A conditional terminal transition lost to an already-terminal job. */
+function logJobTransitionNoop(
+  jobId: string,
+  attempted: 'succeeded' | 'failed' | 'pending-failed',
+): void {
+  console.log(
+    JSON.stringify({
+      level: 'info',
+      component: 'repo',
+      message: 'job already terminal; transition ignored',
+      jobId,
+      attempted,
+    }),
+  )
 }
 
 function isConditionalCheckFailed(err: unknown): boolean {

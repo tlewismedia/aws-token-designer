@@ -83,6 +83,10 @@ module "lambda" {
   table_arn         = module.dynamodb.table_arn
   media_bucket_name = module.storage.media_bucket_name
   media_bucket_arn  = module.storage.media_bucket_arn
+
+  # Parameter NAMES only; values are created out-of-band (docs/TERRAFORM.md).
+  stability_param_name   = local.ssm_parameter_names.stability_api_key
+  kill_switch_param_name = local.ssm_parameter_names.generation_enabled
 }
 
 module "api" {

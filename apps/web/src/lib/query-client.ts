@@ -6,6 +6,7 @@ export const queryKeys = {
   me: (sub: string) => ['profile', sub] as const,
   images: (sub: string) => ['images', sub] as const,
   sheets: (sub: string) => ['sheets', sub] as const,
+  job: (sub: string, jobId: string) => ['job', sub, jobId] as const,
 }
 
 export function createQueryClient(): QueryClient {
