@@ -1,19 +1,22 @@
 // Seed a test user + profile + default sheet.
 //
-// Reads resource names from the environment's Terraform outputs (never
-// hardcoded):
+// Resource names come from Terraform outputs by default:
 //   terraform -chdir=infra/envs/<TF_ENV> output -json
+// If ALL of SEED_USER_POOL_ID, SEED_CLIENT_ID, and SEED_TABLE_NAME are set,
+// Terraform is skipped entirely (useful in CI or without state access).
 //
-// Usage (requires AWS credentials + terraform state access):
+// Usage (requires AWS credentials; Terraform state access unless all SEED_*
+// resource overrides are set):
 //   npm run seed --workspace @aws-token-designer/api
 //   TF_ENV=prod npm run seed --workspace @aws-token-designer/api
 //
 // Options via env:
-//   TF_ENV         (default dev; selects infra/envs/<env>)
-//   SEED_EMAIL     (default dev-user@example.com)
-//   SEED_PASSWORD  (default Test1234!)
+//   TF_ENV          (default dev; selects infra/envs/<env> unless overridden)
+//   SEED_EMAIL      (default dev-user@example.com)
+//   SEED_PASSWORD   (default Test1234!)
 //   SEED_SHEET_NAME (default "Default Sheet")
-//   SEED_USER_POOL_ID / SEED_CLIENT_ID / SEED_TABLE_NAME override outputs
+//   SEED_USER_POOL_ID / SEED_CLIENT_ID / SEED_TABLE_NAME: set all three to skip
+//   Terraform; otherwise Terraform outputs are preferred and these are fallbacks
 
 import {
   CognitoIdentityProviderClient,
@@ -53,7 +56,19 @@ function terraformEnv(): string {
   return env
 }
 
+function hasAllResourceOverrides(): boolean {
+  return Boolean(
+    process.env.SEED_USER_POOL_ID &&
+      process.env.SEED_CLIENT_ID &&
+      process.env.SEED_TABLE_NAME,
+  )
+}
+
 async function loadOutputs(): Promise<DevOutputs> {
+  if (hasAllResourceOverrides()) {
+    console.log('seed: SEED_* resource overrides set; skipping terraform output')
+    return {}
+  }
   const { execFileSync } = await import('node:child_process')
   const env = terraformEnv()
   const raw = execFileSync('terraform', ['output', '-json'], {
