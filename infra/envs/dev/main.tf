@@ -46,11 +46,9 @@ module "dynamodb" {
 module "storage" {
   source = "../../modules/storage"
 
-  project               = var.project
-  stage                 = var.stage
-  tags                  = local.tags
-  media_allowed_origins = var.media_allowed_origins
-  # cloudfront_distribution_arn stays "" until Phase 5 (see module TODO).
+  project = var.project
+  stage   = var.stage
+  tags    = local.tags
 }
 
 module "monitoring" {
@@ -109,4 +107,32 @@ module "api" {
 
   lambda_invoke_arn = module.lambda.lambda_invoke_arn
   lambda_name       = module.lambda.lambda_name
+}
+
+# Phase 5: one CloudFront default URL serves the SPA from the web bucket (OAC)
+# and proxies /api/* to the HTTP API, so the browser sees a single origin
+# (ADR-0003). No custom domain/ACM/Route 53 in v1.
+#
+# WEB_ORIGIN intentionally stays an env input (default "") rather than
+# https://<distribution domain>: referencing the distribution here would create
+# a Terraform cycle (distribution -> api origin; lambda -> distribution). After
+# the first apply an operator can set it for Stripe with
+#   terraform -chdir=infra/envs/dev apply \
+#     -var="web_origin=$(terraform -chdir=infra/envs/dev output -raw web_url)"
+# Stripe is disabled in dev, so this is not blocking.
+module "cloudfront" {
+  source = "../../modules/cloudfront"
+
+  project = var.project
+  stage   = var.stage
+  tags    = local.tags
+
+  web_bucket_id                   = module.storage.web_bucket_id
+  web_bucket_arn                  = module.storage.web_bucket_arn
+  web_bucket_regional_domain_name = module.storage.web_bucket_regional_domain_name
+
+  media_bucket_id       = module.storage.media_bucket_id
+  media_allowed_origins = var.media_allowed_origins
+
+  api_domain_name = module.api.api_domain_name
 }

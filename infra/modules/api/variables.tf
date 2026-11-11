@@ -40,6 +40,11 @@ output "api_endpoint" {
   value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
+output "api_domain_name" {
+  description = "execute-api domain name without scheme (CloudFront API origin)."
+  value       = replace(aws_apigatewayv2_api.main.api_endpoint, "https://", "")
+}
+
 output "api_url" {
   description = "Full execute-api URL (stage api). Use for the Vite dev proxy."
   value       = "${aws_apigatewayv2_api.main.api_endpoint}/api"

@@ -36,10 +36,13 @@ resource "aws_apigatewayv2_integration" "lambda" {
 }
 
 # Route key -> whether the route requires the JWT authorizer.
-# Everything is authenticated except /health (PLAN 6.4).
+# Everything is authenticated except /health (PLAN 6.4). HEAD has no implicit
+# route in an HTTP API, so "HEAD /health" keeps `curl -I` / monitoring probes
+# through CloudFront from 404ing (Hono serves HEAD as GET).
 locals {
   routes = {
     "GET /health"                        = false
+    "HEAD /health"                       = false
     "GET /me"                            = true
     "GET /images"                        = true
     "POST /images/upload-url"            = true
