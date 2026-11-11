@@ -10,8 +10,9 @@ machine gets the same behavior.
 - `infra/envs/dev/versions.tf` — `hashicorp/aws ~> 5.0`, `hashicorp/archive >= 2.0`
 - `infra/bootstrap/versions.tf` — same AWS pin for the state bucket
 - Each module has its own `versions.tf` restating what it needs
-- Region is fixed once: `provider "aws" { region = "us-west-2" }` in
-  `infra/envs/dev/main.tf` (bootstrap uses `var.region`, default `us-west-2`)
+- Region is set once: `provider "aws" { region = var.region }` in
+  `infra/envs/dev/main.tf` (default `"us-west-2"` in `variables.tf`;
+  bootstrap uses `var.region` the same way)
 
 ## Resource
 
