@@ -375,6 +375,38 @@ statuses intact. See "Phase 5 additions" in docs/TERRAFORM.md.
 ## Alarm and budget drill (Phase 6)
 
 All alarms route to the SNS alerts topic and therefore to `alert_email`.
+
+**Dimension-accurate triggers.** `set-alarm-state` proves SNS routing but not
+that an alarm matches the real metric dimensions (a wrong dimension leaves the
+alarm in `INSUFFICIENT_DATA`). Publish real datapoints first, wait for the
+alarm, then reset. Replace the ids with the dev/prod outputs:
+
+```sh
+STAGE=dev REGION=us-west-2
+API_ID=$(terraform -chdir="infra/envs/$STAGE" output -raw api_id)
+API_FN=$(terraform -chdir="infra/envs/$STAGE" output -raw api_lambda_name)
+WORKER_FN=$(terraform -chdir="infra/envs/$STAGE" output -raw generation_worker_name)
+TABLE=$(terraform -chdir="infra/envs/$STAGE" output -raw table_name)
+
+aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/ApiGateway \
+  --metric-data "[{\"MetricName\":\"5xx\",\"Dimensions\":[{\"Name\":\"ApiId\",\"Value\":\"$API_ID\"},{\"Name\":\"Stage\",\"Value\":\"api\"}],\"Value\":1}]"
+aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/Lambda \
+  --metric-data "[{\"MetricName\":\"Errors\",\"Dimensions\":[{\"Name\":\"FunctionName\",\"Value\":\"$API_FN\"}],\"Value\":1}]"
+aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/Lambda \
+  --metric-data "[{\"MetricName\":\"Errors\",\"Dimensions\":[{\"Name\":\"FunctionName\",\"Value\":\"$WORKER_FN\"}],\"Value\":1}]"
+aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/DynamoDB \
+  --metric-data "[{\"MetricName\":\"ReadThrottleEvents\",\"Dimensions\":[{\"Name\":\"TableName\",\"Value\":\"$TABLE\"}],\"Value\":1}]"
+aws cloudwatch put-metric-data --region "$REGION" --namespace TokenDesigner \
+  --metric-data "[{\"MetricName\":\"GenerationFailures\",\"Dimensions\":[{\"Name\":\"Stage\",\"Value\":\"$STAGE\"}],\"Value\":1}]"
+
+# Wait for the 5-minute period to evaluate, then confirm ALARM and reset.
+aws cloudwatch describe-alarms --region "$REGION" \
+  --alarm-name-prefix "token-designer-$STAGE-" \
+  --query 'MetricAlarms[].[AlarmName,StateValue]' --output table
+```
+
+If the state does not move, the dimensions are wrong (fix the alarm) — this is
+the check that catches dimension bugs.
 Trigger each one directly instead of waiting for a metric breach (CloudWatch
 sends the action on the `ALARM` transition):
 

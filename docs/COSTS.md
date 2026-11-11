@@ -19,7 +19,7 @@ to check spend. Figures are list prices in `us-west-2` for a low-traffic demo
 | CloudFront | ~5 GB transfer, ~100k requests, `PriceClass_100` | $0.00–0.50 |
 | Cognito (Essentials) | < 10k MAU | $0.00 |
 | CloudWatch Logs | < 5 GB/month, 7-day (dev) / 30-day (prod) retention | $0.00–0.50 |
-| CloudWatch alarms | 8 alarms | $0.00–0.10 |
+| CloudWatch alarms | 10 alarms | $0.00–0.10 |
 | SNS (email) | a handful of alert emails | ~$0.00 |
 | AWS Budgets / Cost Explorer | 1 budget + API calls | ~$0.00 |
 | SSM Parameter Store | 4 standard parameters per env | $0.00 |
@@ -41,7 +41,7 @@ and alarms remain the backstop either way.
 | Daily AI-cost alarm | `token-designer-<stage>-estimated-ai-cost-daily` | Fires above $5 estimated Stability spend in a UTC day (EMF metric `EstimatedAICost`). |
 | Kill switch | SSM `/token-designer/<stage>/generation-enabled` | Anything other than `true` (or a missing parameter) fails generation closed before Stability is called. |
 | API throttling | `infra/modules/api` | 10 requests/s, burst 20 per route/stage. |
-| Log retention | `infra/modules/lambda`, `infra/modules/api` | 7 days in dev, 30 days in prod (CAP/PLAN §7.6). |
+| Log retention | `infra/modules/lambda`, `infra/modules/api`, `infra/modules/cognito` (pre-sign-up) | 7 days in dev, 30 days in prod (CAP/PLAN §7.6). |
 | S3 lifecycle | `infra/modules/storage` | Abort incomplete multipart uploads after 1 day. |
 | No provisioned concurrency | Lambda modules | Cold starts accepted; no always-on cost. |
 | Single NAT-free VPC design | None (Lambda outside a VPC) | No NAT Gateway hourly/data charges. |

@@ -278,6 +278,12 @@ The drill is successful when both deploys return 200, the SPA loads, and
 
 ## Alarm drill
 
+Use the dimension-accurate `put-metric-data` triggers in
+[`docs/TESTING.md`](TESTING.md#alarm-and-budget-drill-phase-6) first, then
+`set-alarm-state` only to confirm SNS routing. Publishing a real datapoint is
+what proves the alarm's dimensions (ApiId + `Stage=api`, FunctionName,
+TableName, TokenDesigner/Stage) match CloudWatch.
+
 Demonstrate that every alarm reaches SNS without waiting for a real incident by
 setting each alarm state directly (CloudWatch sends the alarm action on the
 `ALARM` transition):

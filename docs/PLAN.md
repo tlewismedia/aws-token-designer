@@ -431,7 +431,7 @@ creation), which keeps the cap binding under repeated failures.
 |---|---|
 | `cognito` | User pool, client, pre-sign-up Lambda trigger, permission |
 | `dynamodb` | Single table, TTL, on-demand |
-| `storage` | Web + media buckets, public access block, ownership, SSE, CORS, lifecycle, OAC bucket policy |
+| `storage` | Web + media buckets, public access block, ownership, SSE, lifecycle (media CORS + OAC bucket policy live in `cloudfront` since Phase 5) |
 | `lambda` | `api`, `generateWorker`, IAM roles, log groups, reserved concurrency, `sharp` layer |
 | `api` | HTTP API, stage `api`, JWT authorizer, routes, integrations, throttling, access logs |
 | `cloudfront` | Distribution, OAC, web + API origins, cache policies, response headers, SPA error responses |
@@ -707,8 +707,10 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
   is clean and configured pre-commit; GitHub secret scanning is a repository
   setting (see `docs/PUBLIC_SAFE.md`).
 - [ ] Unit, integration, and E2E tests pass; CI green. — All suites are green
-  locally and E2E is green against dev; CI runs on the PR (E2E stays manual by
-  design because it needs live AWS).
+  locally and E2E is green against dev. CI runs the offline suites on every
+  PR; a repo-gated OIDC job runs the Playwright suite when
+  `E2E_ROLE_ARN`/`E2E_BASE_URL` and the E2E credentials are configured
+  (otherwise it is skipped because it needs live AWS).
 - [x] Docs complete and linked from `README.md`. — COSTS, SECURITY, RUNBOOK,
   TESTING, TERRAFORM, ARCHITECTURE, PLAN, REQUIREMENTS, RAID, AGENTS.
 - [ ] Budgets and anomaly detection active. — The budget is active; Cost

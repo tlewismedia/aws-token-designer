@@ -174,3 +174,14 @@ module "cloudfront" {
   # the matching statement in the storage module). Dev leaves this false.
   protect_from_deletion = true
 }
+
+# Terraform-level production guard. S3 has no native deletion protection and
+# `lifecycle.prevent_destroy` cannot be set from a variable, so this inert
+# resource carries the flag: `terraform destroy` fails here until the guard is
+# deliberately removed. The bucket-policy Deny statements in the storage and
+# cloudfront modules are defense-in-depth for out-of-band/IAM deletes.
+resource "terraform_data" "deletion_guard" {
+  lifecycle {
+    prevent_destroy = true
+  }
+}
