@@ -1,0 +1,9 @@
+# Copy to backend.hcl (gitignored) and fill in the real bucket name from
+# `terraform -chdir=infra/bootstrap output state_bucket_name`.
+# The AWS account ID stays out of the repo: it is implied by your CLI
+# credentials, never written here.
+bucket       = "REPLACE-ME-token-designer-tfstate"
+key          = "dev/terraform.tfstate"
+region       = "us-west-2"
+encrypt      = true
+use_lockfile = true
