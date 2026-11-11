@@ -27,3 +27,21 @@ variable "media_allowed_origins" {
   type        = list(string)
   default     = ["http://localhost:5173"]
 }
+
+variable "stripe_price_id" {
+  description = "Non-secret Stripe price id for one credit purchase. Empty disables checkout (503 BILLING_DISABLED)."
+  type        = string
+  default     = ""
+}
+
+variable "web_origin" {
+  description = "SPA origin for the embedded Checkout return URL."
+  type        = string
+  default     = "http://localhost:5173"
+}
+
+variable "credits_per_purchase" {
+  description = "Credits granted per completed purchase (server-controlled)."
+  type        = number
+  default     = 10
+}

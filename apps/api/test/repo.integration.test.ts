@@ -16,8 +16,14 @@ import {
   ListTablesCommand,
 } from '@aws-sdk/client-dynamodb'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
-import { JOB_PROCESSING_LEASE_MS } from '@aws-token-designer/shared'
-import { Repo, imageFromItem, sheetFromItem, createDocClient } from '../src/lib/db.js'
+import { JOB_PROCESSING_LEASE_MS, type Payment } from '@aws-token-designer/shared'
+import {
+  Repo,
+  imageFromItem,
+  paymentFromItem,
+  sheetFromItem,
+  createDocClient,
+} from '../src/lib/db.js'
 import { ulid } from '../src/lib/ulid.js'
 
 const enabled = process.env.RUN_DDB_INTEGRATION === '1'
@@ -327,6 +333,119 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
       await expect(repo.getJobForSub('user-a', job.id)).resolves.toMatchObject({
         entityId: job.id,
       })
+    })
+  })
+
+  describe('payments (PLAN 6.5/6.8)', () => {
+    const makePayment = (id: string, userId: string): Payment => ({
+      id,
+      userId,
+      status: 'pending',
+      creditsGranted: 0,
+      creditsToGrant: 10,
+      amountTotal: 500,
+      processedEventIds: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    it('grants credits exactly once across event replays', async () => {
+      const sub = 'payment-user-1'
+      await repo.createProfileIfAbsent(sub, 'pay@example.com')
+      await repo.putPayment(makePayment('cs_once', sub))
+
+      await expect(
+        repo.fulfillPayment({
+          sessionId: 'cs_once',
+          userId: sub,
+          eventId: 'evt_once',
+          credits: 10,
+        }),
+      ).resolves.toBe(true)
+
+      const fulfilled = await repo.getPayment('cs_once')
+      expect(fulfilled?.status).toBe('succeeded')
+      expect(fulfilled?.creditsGranted).toBe(10)
+      expect(fulfilled?.processedEventIds).toEqual(['evt_once'])
+      expect((await repo.getProfile(sub))?.credits).toBe(20)
+
+      // Same event id replay: conditional no-op, credits unchanged.
+      await expect(
+        repo.fulfillPayment({
+          sessionId: 'cs_once',
+          userId: sub,
+          eventId: 'evt_once',
+          credits: 10,
+        }),
+      ).resolves.toBe(false)
+      // A second distinct event after success is also a no-op.
+      await expect(
+        repo.fulfillPayment({
+          sessionId: 'cs_once',
+          userId: sub,
+          eventId: 'evt_second',
+          credits: 10,
+        }),
+      ).resolves.toBe(false)
+
+      expect((await repo.getProfile(sub))?.credits).toBe(20)
+      expect((await repo.getPayment('cs_once'))?.processedEventIds).toEqual(['evt_once'])
+    })
+
+    it('rejects an already-recorded event id while the payment is still pending', async () => {
+      const sub = 'payment-user-2'
+      await repo.createProfileIfAbsent(sub, 'pay2@example.com')
+      await repo.putPayment({
+        ...makePayment('cs_pending_dupe', sub),
+        processedEventIds: ['evt_dupe'],
+      })
+
+      await expect(
+        repo.fulfillPayment({
+          sessionId: 'cs_pending_dupe',
+          userId: sub,
+          eventId: 'evt_dupe',
+          credits: 10,
+        }),
+      ).resolves.toBe(false)
+
+      const item = await repo.getPayment('cs_pending_dupe')
+      expect(item?.status).toBe('pending')
+      expect(item?.creditsGranted).toBe(0)
+      expect((await repo.getProfile(sub))?.credits).toBe(10)
+    })
+
+    it('enforces payment ownership (403 vs 404)', async () => {
+      const sub = 'payment-owner'
+      await repo.createProfileIfAbsent(sub, 'owner@example.com')
+      await repo.putPayment(makePayment('cs_owned', sub))
+
+      await expect(repo.getPaymentForSub('someone-else', 'cs_owned')).rejects.toThrow(
+        /belongs to another user/,
+      )
+      await expect(repo.getPaymentForSub(sub, 'cs_missing')).rejects.toThrow(
+        /Payment not found/,
+      )
+      const owned = await repo.getPaymentForSub(sub, 'cs_owned')
+      expect(paymentFromItem(owned)).toMatchObject({ id: 'cs_owned', userId: sub })
+    })
+
+    it('rolls back the payment transition if the profile is missing', async () => {
+      const sub = 'payment-no-profile'
+      await repo.putPayment(makePayment('cs_no_profile', sub))
+
+      await expect(
+        repo.fulfillPayment({
+          sessionId: 'cs_no_profile',
+          userId: sub,
+          eventId: 'evt_no_profile',
+          credits: 10,
+        }),
+      ).rejects.toThrow()
+
+      const item = await repo.getPayment('cs_no_profile')
+      expect(item?.status).toBe('pending')
+      expect(item?.creditsGranted).toBe(0)
     })
   })
 

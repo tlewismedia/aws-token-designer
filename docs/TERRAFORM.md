@@ -218,3 +218,38 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
   (`/token-designer/<stage>/stability/api-key` SecureString and
   `/token-designer/<stage>/generation-enabled` String); only the names are in
   Terraform.
+
+## Phase 4 additions (Stripe payments)
+
+Terraform carries configuration **names** and non-secret values only; Stripe
+keys stay out-of-band in SSM SecureString.
+
+- `infra/modules/api/` — three routes:
+  - `POST /checkout/session` (JWT)
+  - `GET /checkout/session/{id}` (JWT; ownership checked in the handler)
+  - `POST /webhooks/stripe` (authorization `NONE`; Stripe signature is the auth)
+  The webhook is reached at
+  `https://<api-id>.execute-api.<region>.amazonaws.com/api/webhooks/stripe`
+  (the `api_url` output plus `/webhooks/stripe`).
+- `infra/modules/lambda/` — `api` Lambda environment additions:
+  - `STRIPE_PRICE_ID` — non-secret price id (`stripe_price_id`, default `""`;
+    empty makes checkout answer `503 BILLING_DISABLED`).
+  - `STRIPE_SECRET_PARAM_NAME` /
+    `STRIPE_WEBHOOK_SECRET_PARAM_NAME` — SSM parameter names from
+    `local.ssm_parameter_names` in `infra/envs/dev`.
+  - `WEB_ORIGIN` — SPA origin for the embedded Checkout `return_url`
+    (dev: `http://localhost:5173`).
+  - `CREDITS_PER_PURCHASE` — server-controlled credits per purchase
+    (default `10`).
+- `infra/modules/lambda/` — `api` IAM additions:
+  - `dynamodb:TransactWriteItems` on the table (the webhook's atomic
+    payment + profile-credit transaction).
+  - `ssm:GetParameter` on exactly the two Stripe parameter ARNs.
+  - `kms:Decrypt` on the `data.aws_kms_alias.ssm.target_key_arn` key ARN
+    (KMS does not accept alias ARNs in an IAM `Resource`).
+- `infra/envs/dev/variables.tf` — `stripe_price_id` (default `""`),
+  `web_origin` (default `http://localhost:5173`), `credits_per_purchase`
+  (default `10`). Pass the real test-mode price id with `-var` or a gitignored
+  tfvars file; it is not a secret.
+- No new Lambda functions or resources: the existing `api` function serves the
+  routes and the existing table stores payments.

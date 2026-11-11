@@ -187,6 +187,119 @@ Alarms: `token-designer-dev-generation-count-daily` (>50/day) and
 `token-designer-dev-estimated-ai-cost-daily` (>$5/day), both Sum over 86400s
 against namespace `TokenDesigner`, dimension `Stage=dev`.
 
+## Payments smoke (Phase 4)
+
+The purchase UI stays disabled (`/buy-credits` is still a placeholder), but the
+backend is live-ready. In `dev` the current environment has **no Stripe keys in
+SSM**, so checkout answers `503 BILLING_DISABLED` and the webhook answers `503`
+until an operator configures them.
+
+### Offline tests
+
+```sh
+npm test --workspace @aws-token-designer/shared   # payment zod schemas
+npm test --workspace @aws-token-designer/api      # checkout/status/webhook routes
+RUN_DDB_INTEGRATION=1 npm test --workspace @aws-token-designer/api
+```
+
+The webhook unit tests use the real Stripe SDK to sign fixtures with
+`Stripe.webhooks.generateTestHeaderString` and verify the raw body with
+`constructEvent`. The DynamoDB Local integration suite proves the transaction
+grants credits exactly once, rejects a replayed event id, transitions
+`pending → succeeded`, and enforces payment ownership.
+
+### Configure Stripe test mode (out-of-band)
+
+```sh
+# Secret key (test mode) and webhook signing secret. Values never enter
+# Terraform state or the repo.
+aws ssm put-parameter --name "/token-designer/dev/stripe/secret" \
+  --type SecureString --value "sk_test_..." --region us-west-2 --overwrite
+aws ssm put-parameter --name "/token-designer/dev/stripe/webhook-secret" \
+  --type SecureString --value "whsec_..." --region us-west-2 --overwrite
+```
+
+Set the non-secret price id at apply time (or in a gitignored tfvars file):
+
+```sh
+terraform -chdir=infra/envs/dev apply -var="stripe_price_id=price_..."
+```
+
+The API Lambda reads the two parameter names from its environment and decrypts
+the SecureStrings at request time; redeploy is not needed after rotating a
+secret (a warm invocation may cache the old value until the environment is
+recycled).
+
+### Webhook URL and Stripe CLI
+
+The webhook is on the execute-api URL (ADR-0007), not CloudFront:
+
+```
+https://<api-id>.execute-api.<region>.amazonaws.com/api/webhooks/stripe
+# = $(terraform -chdir=infra/envs/dev output -raw api_url)/webhooks/stripe
+```
+
+Forward Stripe test events while developing:
+
+```sh
+API=$(terraform -chdir=infra/envs/dev output -raw api_url)
+stripe listen --forward-to "$API/webhooks/stripe"
+# then, in another shell, complete a test checkout.
+```
+
+Do not create the endpoint in the Stripe dashboard for local verification; the
+CLI supplies its own `whsec_...` test secret (copy it into the SSM parameter
+above).
+
+### Manual API checks
+
+```sh
+# Unconfigured deployment: checkout is disabled without breaking other routes.
+curl -i -X POST -H "Authorization: Bearer $TOKEN" "$API/checkout/session"
+#   503 { "error": { "code": "BILLING_DISABLED", ... } }
+
+# Configured: create an embedded session + pending PAYMENT.
+curl -i -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' "$API/checkout/session"
+#   201 { "sessionId": "cs_test_...", "clientSecret": "cs_test_..._secret_..." }
+
+# Status: owner 200 { status, creditsGranted } only; other user 403; missing 404.
+curl -i -H "Authorization: Bearer $TOKEN" "$API/checkout/session/$SESSION_ID"
+curl -i -H "Authorization: Bearer $TOKEN" "$API/checkout/session/$OTHER_USERS_SESSION_ID"
+
+# Webhook signature failures are a generic 400 (no reason leaked).
+curl -i -X POST -H 'Stripe-Signature: t=1,v1=bad' \
+  -H 'Content-Type: application/json' -d '{}' "$API/webhooks/stripe"
+```
+
+Replay the same Stripe event (CLI or dashboard "Resend") and confirm
+`credits` in DynamoDB is unchanged. A transient DynamoDB error returns 5xx so
+Stripe retries; the replay path returns 200 without a second grant.
+
+If the Stripe API call succeeds but the `PAYMENT` write fails, the API returns
+500 and logs the session id (`checkout session orphaned: payment write failed`)
+so an operator can reconcile or refund the orphaned session. No credit is
+recorded and no webhook fulfillment can match it.
+
+Inspect a payment:
+
+```sh
+aws dynamodb get-item --table-name "$TABLE" \
+  --key '{"PK":{"S":"PAYMENT#cs_test_..."},"SK":{"S":"PAYMENT"}}' \
+  --region us-west-2
+```
+
+### Return page states
+
+`GET /checkout/session/{id}` returns only `{ status, creditsGranted }`:
+
+- `succeeded` → “Payment confirmed — N credits added.”
+- `pending` → “Credits are being applied…”; the page polls a few times, then
+  offers a Refresh button.
+- `failed` → fulfillment-failed message with the `orders@example.com` contact.
+- `403`/`404`/missing `session_id` → unknown order (no payment data).
+- Unexpected network/API error → retryable error message.
+
 ## Deployed dev status
 
 Last verified: **2026-11-11** (dev stage, after the Phase 2 deploy).
@@ -212,3 +325,9 @@ implemented and unit-tested in this branch. Live dev verification of the
 success path is pending a Stability SecureString; the missing-key,
 kill-switch, cap-429, and job-auth paths are covered by the smoke checklist
 above.
+
+Phase 4 (checkout session, status, webhook fulfillment, return-page states) is
+implemented and unit/integration tested. Live dev checkout/webhook verification
+is pending Stripe test-mode SecureStrings; without them the deployable paths
+are checkout `503 BILLING_DISABLED`, webhook `503`/`400`, and status
+`403`/`404`. The purchase UI remains disabled.

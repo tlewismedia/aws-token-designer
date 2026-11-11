@@ -77,8 +77,10 @@ resource "aws_iam_role_policy" "api" {
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
+        # TransactWriteItems is the idempotent webhook fulfillment (payment +
+        # profile credits) in one atomic transaction.
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"]
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:TransactWriteItems"]
         Resource = [var.table_arn]
       },
       {
@@ -96,6 +98,22 @@ resource "aws_iam_role_policy" "api" {
         Effect   = "Allow"
         Action   = ["lambda:InvokeFunction"]
         Resource = [aws_lambda_function.worker.arn]
+      },
+      {
+        # Stripe secret + webhook signing secret (NAMES in env, values SSM).
+        Effect = "Allow"
+        Action = ["ssm:GetParameter"]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.stripe_secret_param_name}",
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.stripe_webhook_secret_param_name}",
+        ]
+      },
+      {
+        # SecureString decryption with the AWS-managed aws/ssm key (key ARN,
+        # not the alias ARN — same pattern as the worker policy).
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = [data.aws_kms_alias.ssm.target_key_arn]
       },
     ]
   })
@@ -186,11 +204,16 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TABLE_NAME           = var.table_name
-      MEDIA_BUCKET         = var.media_bucket_name
-      WORKER_FUNCTION_NAME = aws_lambda_function.worker.function_name
-      NODE_OPTIONS         = "--enable-source-maps"
-      PRESIGN_TTL          = "3600"
+      TABLE_NAME                       = var.table_name
+      MEDIA_BUCKET                     = var.media_bucket_name
+      WORKER_FUNCTION_NAME             = aws_lambda_function.worker.function_name
+      NODE_OPTIONS                     = "--enable-source-maps"
+      PRESIGN_TTL                      = "3600"
+      STRIPE_PRICE_ID                  = var.stripe_price_id
+      STRIPE_SECRET_PARAM_NAME         = var.stripe_secret_param_name
+      STRIPE_WEBHOOK_SECRET_PARAM_NAME = var.stripe_webhook_secret_param_name
+      WEB_ORIGIN                       = var.web_origin
+      CREDITS_PER_PURCHASE             = tostring(var.credits_per_purchase)
     }
   }
 

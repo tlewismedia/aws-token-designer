@@ -61,6 +61,46 @@ variable "kill_switch_param_name" {
   type        = string
 }
 
+# ---------------------------------------------------------------------------
+# Stripe payments (Phase 4). Terraform carries NAMES/config only; secret values
+# are created out-of-band in SSM SecureString (docs/TERRAFORM.md).
+# ---------------------------------------------------------------------------
+
+variable "stripe_price_id" {
+  description = "Non-secret Stripe price id for one credit purchase. Empty disables checkout with 503 BILLING_DISABLED."
+  type        = string
+  default     = ""
+}
+
+variable "stripe_secret_param_name" {
+  description = "SSM SecureString NAME holding the Stripe secret key (env STRIPE_SECRET_PARAM_NAME)."
+  type        = string
+  default     = ""
+}
+
+variable "stripe_webhook_secret_param_name" {
+  description = "SSM SecureString NAME holding the Stripe webhook signing secret (env STRIPE_WEBHOOK_SECRET_PARAM_NAME)."
+  type        = string
+  default     = ""
+}
+
+variable "web_origin" {
+  description = "SPA origin used to build the embedded Checkout return_url."
+  type        = string
+  default     = "http://localhost:5173"
+}
+
+variable "credits_per_purchase" {
+  description = "Server-controlled credits granted per completed purchase (env CREDITS_PER_PURCHASE)."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.credits_per_purchase > 0 && floor(var.credits_per_purchase) == var.credits_per_purchase
+    error_message = "credits_per_purchase must be a positive integer."
+  }
+}
+
 output "lambda_arn" {
   description = "ARN of the api Lambda function."
   value       = aws_lambda_function.api.arn

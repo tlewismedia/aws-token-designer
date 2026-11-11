@@ -323,7 +323,7 @@ aws-token-designer/
 | Profile | `USER#<sub>` | `PROFILE` | `email`, `credits`, `createdAt`, `updatedAt` |
 | Image | `USER#<sub>` | `IMAGE#<ulid>` | `entityId` (= ulid), `name`, `description`, `style`, `thumbKey`, `fullKey`, `status`, `createdAt` |
 | Sheet | `USER#<sub>` | `SHEET#<ulid>` | `entityId` (= ulid), `name`, `template`, `images[]`, `createdAt` |
-| Payment | `PAYMENT#<sessionId>` | `PAYMENT` | `userId`, `status`, `creditsGranted`, `processedEventIds`, timestamps |
+| Payment | `PAYMENT#<sessionId>` | `PAYMENT` | `userId`, `status`, `creditsGranted`, `creditsToGrant`, `amountTotal`, `processedEventIds`, timestamps |
 | Job | `USER#<sub>` | `JOB#<ulid>` | `type`, `status`, `imageId`, `error`, `expiresAt` |
 | Rate limit | `USER#<sub>` | `RATE#<yyyy-mm-dd>` | `count`, `expiresAt` (TTL) |
 
@@ -345,7 +345,13 @@ across all partitions before comparing ownership (including the `403` vs
   `PATCH /sheets/{id}` `images[]` entries.
 - Add/remove image: read-modify-write sheet item (max 63 IDs).
 - Delete image: delete S3 objects, delete image item, update all sheets.
-- Payment fulfillment: `TransactWriteItems` with a condition on payment status + credit increment.
+- Payment status: direct `GetItem(PK=PAYMENT#<sessionId>, SK=PAYMENT)`, then
+  compare `userId` with the JWT `sub` (missing → 404, other user → 403). The
+  `byId` GSI is not needed because the key is already unique.
+- Payment fulfillment: `TransactWriteItems` with a condition on payment
+  `status = pending` plus the webhook event id not already in
+  `processedEventIds`, and an `ADD credits` on the profile. A replayed event
+  cancels the transaction and is acknowledged as a no-op.
 - Daily generation cap: `UpdateItem` on a `RATE#<date>` item with a conditional increment.
 
 ### 6.6 Storage and Image Pipeline

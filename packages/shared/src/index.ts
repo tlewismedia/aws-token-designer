@@ -82,6 +82,50 @@ export const sheetSchema = z.object({
 export type Sheet = z.infer<typeof sheetSchema>
 
 // ---------------------------------------------------------------------------
+// Payments (PLAN 6.5, 6.8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Payment record lifecycle. `pending` is written when the Checkout Session is
+ * created; `succeeded` is written by the webhook's idempotent transaction.
+ * `failed` is reserved for an out-of-band permanent fulfillment failure (the
+ * webhook returns 5xx on transient errors so Stripe retries).
+ */
+export const paymentStatusSchema = z.enum(['pending', 'succeeded', 'failed'])
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>
+
+export const paymentSchema = z.object({
+  /** Stripe Checkout Session id (`cs_...`). */
+  id: z.string().min(1),
+  /** Cognito `sub` from the JWT that created the session. */
+  userId: z.string().min(1),
+  status: paymentStatusSchema,
+  creditsGranted: z.number().int().nonnegative(),
+  creditsToGrant: z.number().int().positive(),
+  amountTotal: z.number().int().nonnegative(),
+  /** Webhook event ids already applied (idempotency guard). */
+  processedEventIds: z.array(z.string()),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+})
+export type Payment = z.infer<typeof paymentSchema>
+
+export const checkoutSessionResponseSchema = z.object({
+  sessionId: z.string().min(1),
+  clientSecret: z.string().min(1),
+})
+export type CheckoutSessionResponse = z.infer<typeof checkoutSessionResponseSchema>
+
+/** GET /checkout/session/{id}: status + granted credits, never user data. */
+export const checkoutSessionStatusResponseSchema = z.object({
+  status: paymentStatusSchema,
+  creditsGranted: z.number().int().nonnegative(),
+})
+export type CheckoutSessionStatusResponse = z.infer<
+  typeof checkoutSessionStatusResponseSchema
+>
+
+// ---------------------------------------------------------------------------
 // Responses
 // ---------------------------------------------------------------------------
 

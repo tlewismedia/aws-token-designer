@@ -87,6 +87,14 @@ module "lambda" {
   # Parameter NAMES only; values are created out-of-band (docs/TERRAFORM.md).
   stability_param_name   = local.ssm_parameter_names.stability_api_key
   kill_switch_param_name = local.ssm_parameter_names.generation_enabled
+
+  # Stripe payments (Phase 4). The price id is non-secret config; the two
+  # secret values live in SSM SecureString and are read at request time.
+  stripe_price_id                  = var.stripe_price_id
+  stripe_secret_param_name         = local.ssm_parameter_names.stripe_secret
+  stripe_webhook_secret_param_name = local.ssm_parameter_names.stripe_webhook_secret
+  web_origin                       = var.web_origin
+  credits_per_purchase             = var.credits_per_purchase
 }
 
 module "api" {
