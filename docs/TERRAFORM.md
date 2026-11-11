@@ -240,8 +240,8 @@ keys stay out-of-band in SSM SecureString.
   - `STRIPE_SECRET_PARAM_NAME` /
     `STRIPE_WEBHOOK_SECRET_PARAM_NAME` — SSM parameter names from
     `local.ssm_parameter_names` in `infra/envs/dev`.
-  - `WEB_ORIGIN` — SPA origin for the embedded Checkout `return_url` (dev default is empty until set to the CloudFront URL; see Phase 5)
-    (dev: `http://localhost:5173`).
+  - `WEB_ORIGIN` — SPA origin for the embedded Checkout `return_url`
+    (dev default is empty until it is set to the CloudFront URL; see Phase 5).
   - `CREDITS_PER_PURCHASE` — server-controlled credits per purchase
     (default `10`).
 - `infra/modules/lambda/` — `api` IAM additions:
@@ -308,8 +308,8 @@ default URL (PLAN 7.4, ADR-0003). No custom domain, ACM certificate, or Route
   `var.media_allowed_origins` (default `http://localhost:5173`) plus the
   distribution origin; PUT, `*` headers, `ETag` exposed, 3000 s max age. Do not
   add a second CORS resource in `storage` — S3 has one CORS singleton per
-  bucket. The first plan after this change shows the storage CORS resource
-  deleted and the cloudfront one created (one-time, accepted).
+  bucket. The resource is moved in place via the root-level `moved` block in
+  `infra/envs/dev/main.tf`, so the plan shows an update, not a delete/create.
 - **Outputs** — `distribution_id`, `distribution_domain_name`,
   `distribution_arn`, `distribution_hosted_zone_id`; dev adds `web_url`,
   `cloudfront_distribution_id`, `cloudfront_domain_name`, `aws_region`.

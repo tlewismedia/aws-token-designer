@@ -213,10 +213,10 @@ resource "aws_s3_bucket_policy" "web" {
 }
 
 # Browser presigned PUTs go straight to S3, so media CORS must name the
-# deployed SPA origin. Moved here from the storage module (Phase 5) because it
-# needs the distribution domain; the resource is moved from the storage module
-# for one bucket would fight over the singleton API. The one-time plan shows a
-# delete (storage) + create (here).
+# deployed SPA origin. It lives here (Phase 5) because only this module knows
+# the distribution domain; S3 has a single CORS singleton per bucket, so the
+# storage-level resource is moved in place via the `moved` block in
+# infra/envs/dev/main.tf (no delete/create).
 resource "aws_s3_bucket_cors_configuration" "media" {
   bucket = var.media_bucket_id
 
