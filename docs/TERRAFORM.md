@@ -194,8 +194,11 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
   - IAM (least privilege): table read/write + `byId` GSI query, media bucket
     get/put/delete, `ssm:GetParameter` on exactly
     `/token-designer/<stage>/stability/api-key` and
-    `/token-designer/<stage>/generation-enabled`, `kms:Decrypt` on
-    `alias/aws/ssm` (SecureString), and logs.
+    `/token-designer/<stage>/generation-enabled`, `kms:Decrypt` on the
+    **key ARN** returned by `data.aws_kms_alias.ssm` (SecureString), and logs.
+    KMS does not resolve alias ARNs in an IAM `Resource`, so the module looks
+    the AWS-managed `alias/aws/ssm` key up and grants on
+    `target_key_arn`.
   - Env: `TABLE_NAME`, `MEDIA_BUCKET`, `STABILITY_PARAM_NAME`,
     `KILL_SWITCH_PARAM_NAME`, `STAGE`.
   - **No reserved concurrency** (dev account limit is 10); see PLAN §7.6.

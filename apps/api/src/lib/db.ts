@@ -27,6 +27,7 @@ import {
   DEFAULT_CREDITS,
   DEFAULT_SHEET_NAME,
   DEFAULT_SHEET_TEMPLATE,
+  JOB_PROCESSING_LEASE_MS,
   MAX_SHEET_TOKENS,
   PK_PREFIX,
   RATE_TTL_DAYS,
@@ -81,6 +82,8 @@ export interface JobItem extends EntityItem {
   negativePrompt?: string
   style?: Job['style']
   error?: string
+  /** ISO timestamp of the current processing lease start. */
+  processingAt?: string
   expiresAt?: number
 }
 
@@ -325,23 +328,32 @@ export class Repo {
   }
 
   /**
-   * Idempotency gate for the worker: pending → processing only. Returns false
-   * when another attempt already claimed the job (async retry) or it is
-   * terminal, so the caller must not call Stability again.
+   * Idempotency gate for the worker: pending → processing. A second attempt
+   * while the lease is fresh no-ops; a retry may reclaim a `processing` job
+   * whose `processingAt` is older than JOB_PROCESSING_LEASE_MS (e.g. the first
+   * worker died mid-flight), so jobs cannot stay stuck forever.
+   * Returns false when another attempt holds a fresh lease or the job is
+   * terminal.
    */
   async claimJobForProcessing(sub: string, jobId: string): Promise<boolean> {
+    const now = nowIso()
+    const staleBefore = new Date(Date.now() - JOB_PROCESSING_LEASE_MS).toISOString()
     try {
       await this.doc.send(
         new UpdateCommand({
           TableName: this.table,
           Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
-          UpdateExpression: 'SET #status = :processing, updatedAt = :now',
-          ConditionExpression: '#status = :pending',
+          UpdateExpression: 'SET #status = :processing, processingAt = :now, updatedAt = :now',
+          // attribute_not_exists covers jobs claimed before processingAt was
+          // introduced; they are treated as stale and reclaimable.
+          ConditionExpression:
+            '#status = :pending OR (#status = :processing AND (attribute_not_exists(processingAt) OR processingAt < :staleBefore))',
           ExpressionAttributeNames: { '#status': 'status' },
           ExpressionAttributeValues: {
             ':processing': 'processing',
             ':pending': 'pending',
-            ':now': nowIso(),
+            ':now': now,
+            ':staleBefore': staleBefore,
           },
         }),
       )
@@ -352,37 +364,68 @@ export class Repo {
     }
   }
 
+  /**
+   * Worker-only success transition. Conditional so an older/late attempt (or
+   * an API-side invoke failure) can never flip a terminal job; a conditional
+   * failure is a logged no-op.
+   */
   async markJobSucceeded(sub: string, jobId: string, imageId: string): Promise<void> {
-    await this.doc.send(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
-        UpdateExpression:
-          'SET #status = :status, imageId = :imageId, updatedAt = :now REMOVE #error',
-        ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
-        ExpressionAttributeValues: {
-          ':status': 'succeeded',
-          ':imageId': imageId,
-          ':now': nowIso(),
-        },
-      }),
-    )
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression:
+            'SET #status = :status, imageId = :imageId, updatedAt = :now REMOVE #error',
+          ConditionExpression: '#status = :processing',
+          ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+          ExpressionAttributeValues: {
+            ':status': 'succeeded',
+            ':imageId': imageId,
+            ':processing': 'processing',
+            ':now': nowIso(),
+          },
+        }),
+      )
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) {
+        logJobTransitionNoop(jobId, 'succeeded')
+        return
+      }
+      throw err
+    }
   }
 
+  /**
+   * Terminal-safe failure transition. Only pending/processing jobs can fail;
+   * a late API invoke failure therefore cannot overwrite a job the worker
+   * already marked succeeded. Conditional failure is a logged no-op.
+   */
   async markJobFailed(sub: string, jobId: string, errorCode: string): Promise<void> {
-    await this.doc.send(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
-        UpdateExpression: 'SET #status = :status, #error = :error, updatedAt = :now',
-        ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
-        ExpressionAttributeValues: {
-          ':status': 'failed',
-          ':error': errorCode,
-          ':now': nowIso(),
-        },
-      }),
-    )
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression: 'SET #status = :status, #error = :error, updatedAt = :now',
+          ConditionExpression: '#status IN (:pending, :processing)',
+          ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+          ExpressionAttributeValues: {
+            ':status': 'failed',
+            ':error': errorCode,
+            ':pending': 'pending',
+            ':processing': 'processing',
+            ':now': nowIso(),
+          },
+        }),
+      )
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) {
+        logJobTransitionNoop(jobId, 'failed')
+        return
+      }
+      throw err
+    }
   }
 
   // -- Daily generation cap --------------------------------------------------
@@ -585,6 +628,19 @@ export class Repo {
     )
     return (res.Items as EntityItem[] | undefined) ?? []
   }
+}
+
+/** A conditional terminal transition lost to an already-terminal job. */
+function logJobTransitionNoop(jobId: string, attempted: 'succeeded' | 'failed'): void {
+  console.log(
+    JSON.stringify({
+      level: 'info',
+      component: 'repo',
+      message: 'job already terminal; transition ignored',
+      jobId,
+      attempted,
+    }),
+  )
 }
 
 function isConditionalCheckFailed(err: unknown): boolean {

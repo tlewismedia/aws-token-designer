@@ -14,6 +14,12 @@ locals {
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
+# KMS does not resolve alias ARNs in an IAM Resource, so look the AWS-managed
+# SSM key up and grant Decrypt on its key ARN instead of `alias/aws/ssm`.
+data "aws_kms_alias" "ssm" {
+  name = "alias/aws/ssm"
+}
+
 data "archive_file" "api" {
   type        = "zip"
   output_path = "${path.module}/.terraform/api.zip"
@@ -149,10 +155,11 @@ resource "aws_iam_role_policy" "worker" {
         ]
       },
       {
-        # SecureString decryption with the AWS-managed aws/ssm key.
+        # SecureString decryption with the AWS-managed aws/ssm key. IAM must
+        # name the key ARN — an `alias/aws/ssm` alias ARN authorizes nothing.
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
-        Resource = ["arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"]
+        Resource = [data.aws_kms_alias.ssm.target_key_arn]
       },
     ]
   })

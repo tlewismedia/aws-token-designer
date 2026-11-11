@@ -7,6 +7,7 @@
 
 import type { ImageStyle } from '@aws-token-designer/shared'
 import { STABILITY_TIMEOUT_MS } from '@aws-token-designer/shared'
+import { sniffImageType } from './process-image.js'
 
 export const STABILITY_ULTRA_URL =
   'https://api.stability.ai/v2beta/stable-image/generate/ultra'
@@ -69,6 +70,11 @@ export async function generateStabilityImage(input: StabilityRequest): Promise<B
     throw new StabilityError(res.status)
   }
   const bytes = Buffer.from(await res.arrayBuffer())
-  if (bytes.length === 0) throw new StabilityError(res.status)
+  // We requested PNG, so the body must actually be a PNG. This rejects an
+  // empty body, a JSON/HTML error page served with 200, or any other format
+  // before sharp ever sees the bytes.
+  if (sniffImageType(bytes) !== 'image/png') {
+    throw new StabilityError(res.status)
+  }
   return bytes
 }

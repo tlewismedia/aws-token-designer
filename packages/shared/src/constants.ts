@@ -55,6 +55,20 @@ export const GENERATION_METRIC_DIMENSION = 'Stage'
 /** Client polling cadence for an in-flight generation job (PLAN 6.9). */
 export const JOB_POLL_INTERVAL_MS = 2000
 
+/**
+ * Client-side polling bound (~150 s at the 2 s cadence). If the job is still
+ * pending/processing after this many updates, the client stops polling and
+ * tells the user to check the gallery rather than polling forever.
+ */
+export const JOB_POLL_MAX_ATTEMPTS = 75
+
+/**
+ * Worker lease for a `processing` job. A retry may reclaim a job whose
+ * `processingAt` is older than this (e.g. the first worker died mid-flight),
+ * while a concurrent attempt against a fresh lease still no-ops.
+ */
+export const JOB_PROCESSING_LEASE_MS = 5 * 60 * 1000
+
 /** Stability request timeout (milliseconds). */
 export const STABILITY_TIMEOUT_MS = 90_000
 

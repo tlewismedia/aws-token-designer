@@ -9,7 +9,13 @@
 // integration layer covers repository access patterns).
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { CreateTableCommand, DeleteTableCommand, DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb'
+import {
+  CreateTableCommand,
+  DeleteTableCommand,
+  DynamoDBClient,
+  ListTablesCommand,
+} from '@aws-sdk/client-dynamodb'
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { Repo, imageFromItem, sheetFromItem, createDocClient } from '../src/lib/db.js'
 import { ulid } from '../src/lib/ulid.js'
 
@@ -206,6 +212,56 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
       const item = await repo.getJob('user-a', job.id)
       expect(item?.status).toBe('failed')
       expect(item?.error).toBe('GENERATION_DISABLED')
+    })
+
+    it('reclaims a stale processing lease but not a fresh one', async () => {
+      const job = makeJob('job-lease')
+      await repo.putJob(job)
+      // Simulate a worker that claimed the job 10 minutes ago and died.
+      await doc.send(
+        new UpdateCommand({
+          TableName: TABLE,
+          Key: { PK: 'USER#user-a', SK: `JOB#${job.id}` },
+          UpdateExpression: 'SET #status = :processing, processingAt = :old',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':processing': 'processing',
+            ':old': new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+          },
+        }),
+      )
+      await expect(repo.claimJobForProcessing('user-a', job.id)).resolves.toBe(true)
+      // The reclaim refreshed processingAt, so a concurrent retry no-ops.
+      await expect(repo.claimJobForProcessing('user-a', job.id)).resolves.toBe(false)
+      const item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('processing')
+      expect(item?.processingAt).toBeDefined()
+    })
+
+    it('a late/API failure cannot flip a succeeded job', async () => {
+      const job = makeJob('job-terminal-success')
+      await repo.putJob(job)
+      await repo.claimJobForProcessing('user-a', job.id)
+      await repo.markJobSucceeded('user-a', job.id, job.imageId)
+      // This is the POST /images/generate invoke-failure path racing a
+      // worker that already succeeded: it must be a no-op.
+      await repo.markJobFailed('user-a', job.id, 'GENERATION_FAILED')
+      // A stale worker retry must also not re-transition it.
+      await repo.markJobSucceeded('user-a', job.id, job.imageId)
+      const item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('succeeded')
+      expect(item?.error).toBeUndefined()
+    })
+
+    it('success cannot overwrite a failed job', async () => {
+      const job = makeJob('job-terminal-failed')
+      await repo.putJob(job)
+      await repo.claimJobForProcessing('user-a', job.id)
+      await repo.markJobFailed('user-a', job.id, 'GENERATION_FAILED')
+      await repo.markJobSucceeded('user-a', job.id, job.imageId)
+      const item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('failed')
+      expect(item?.error).toBe('GENERATION_FAILED')
     })
 
     it('distinguishes 403 (other user) from 404 (missing) via byId', async () => {
