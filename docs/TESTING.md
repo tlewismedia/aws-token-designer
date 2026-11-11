@@ -36,6 +36,51 @@ terraform -chdir=infra/modules/<module> init -backend=false
 terraform -chdir=infra/modules/<module> validate
 ```
 
+## Browser E2E (Playwright)
+
+The Phase 2 UI smoke drives the real `dev` backend (Cognito, HTTP API, S3) in
+headless Chromium. It lives in `apps/web/e2e/phase2.spec.ts` with
+`apps/web/playwright.config.ts`.
+
+```sh
+npx playwright install chromium   # once per machine
+npm run e2e                       # from the repo root
+```
+
+Prerequisites:
+
+- `apps/web/.env.local` points at the deployed dev stack (see
+  `apps/web/README.md`); the Playwright `webServer` runs the Vite dev server on
+  `http://localhost:5173` and reuses an already-running one.
+- The seeded dev user exists (`dev-user@example.com` / `Test1234!` from
+  `npm run seed --workspace @aws-token-designer/api`). Override with
+  `E2E_EMAIL` / `E2E_PASSWORD`.
+- AWS credentials in the shell if the registration test should delete its
+  Cognito user. Without them (or without `E2E_USER_POOL_ID` /
+  `VITE_COGNITO_USER_POOL_ID` in `.env.local`) the test still passes but logs a
+  warning and leaves the user behind.
+
+What it covers: the logged-out marketing page and protected-route redirect,
+login plus navbar credits from `GET /me`, PNG upload and gallery thumbnail,
+add/remove/clear tokens, print (with `window.print` stubbed via
+`addInitScript`, after the thumbnail gate opens), image delete, logout back to
+the marketing page, and registration with a unique per-run
+`e2e+<timestamp>@example.com` address (the pre-sign-up trigger auto-confirms).
+
+Isolation and cleanup:
+
+- The spec clears the seeded user's sheet and deletes any `e2e-` gallery image
+  left by an earlier failed run before starting, so re-runs do not need a
+  pristine account. It deletes the image it created.
+- Registration users are removed in `afterAll` with
+  `aws cognito-idp admin-delete-user`.
+- Their lazily created DynamoDB `PROFILE` / `SHEET` items remain: there is no
+  account-deletion API yet. This is accepted for the dev stage; delete the
+  items manually if they get noisy.
+
+E2E requires a live dev backend and is intentionally **not** part of
+`npm test` or CI. Vitest excludes `apps/web/e2e/**`.
+
 ## Manual smoke checklist
 
 Against a deployed dev stage (or the Vite dev app pointed at it):
@@ -85,7 +130,11 @@ Last verified: **2026-11-11** (dev stage, after the Phase 2 deploy).
   - 11 MB upload returns 413; non-image returns 400
   - cross-user image id returns 403
   - delete removes S3 objects and sheet references
-- Browser E2E / print smoke: **outstanding** (requires the deployed SPA and a
-  real browser; Playwright automation is a separate issue).
+- Browser E2E / print smoke: **green** (2026-11-11) — `npm run e2e`
+  (Playwright, headless Chromium, 2 tests passed) against the dev stack:
+  logged-out marketing page + `/dashboard` redirect, seeded-user login with
+  navbar credits, PNG upload/thumbnail, add/remove/clear tokens, print
+  (`window.print` stub), image delete, logout, and auto-confirmed
+  registration. See "Browser E2E (Playwright)" above.
 
 Update this section when the browser/print pass is recorded.
