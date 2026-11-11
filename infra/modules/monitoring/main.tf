@@ -117,6 +117,9 @@ resource "aws_budgets_budget" "monthly" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
 
+  # Ensure Budgets can publish before the budget registers the SNS topic.
+  depends_on = [aws_sns_topic_policy.alerts]
+
   dynamic "notification" {
     for_each = [
       { threshold = 4, type = "ACTUAL" },
