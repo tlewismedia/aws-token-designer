@@ -1,15 +1,19 @@
-// Seed a dev test user + profile + default sheet.
+// Seed a test user + profile + default sheet.
 //
-// Reads resource names from the dev Terraform outputs (never hardcoded):
-//   terraform -chdir=infra/envs/dev output -json
+// Reads resource names from the environment's Terraform outputs (never
+// hardcoded):
+//   terraform -chdir=infra/envs/<TF_ENV> output -json
 //
 // Usage (requires AWS credentials + terraform state access):
 //   npm run seed --workspace @aws-token-designer/api
+//   TF_ENV=prod npm run seed --workspace @aws-token-designer/api
 //
 // Options via env:
-//   SEED_EMAIL    (default dev-user@example.com)
-//   SEED_PASSWORD (default Test1234!)
+//   TF_ENV         (default dev; selects infra/envs/<env>)
+//   SEED_EMAIL     (default dev-user@example.com)
+//   SEED_PASSWORD  (default Test1234!)
 //   SEED_SHEET_NAME (default "Default Sheet")
+//   SEED_USER_POOL_ID / SEED_CLIENT_ID / SEED_TABLE_NAME override outputs
 
 import {
   CognitoIdentityProviderClient,
@@ -41,10 +45,19 @@ interface TerraformOutput {
   value: unknown
 }
 
+function terraformEnv(): string {
+  const env = process.env.TF_ENV?.trim() || 'dev'
+  if (env !== 'dev' && env !== 'prod') {
+    throw new Error(`TF_ENV must be "dev" or "prod" (got "${env}")`)
+  }
+  return env
+}
+
 async function loadOutputs(): Promise<DevOutputs> {
   const { execFileSync } = await import('node:child_process')
+  const env = terraformEnv()
   const raw = execFileSync('terraform', ['output', '-json'], {
-    cwd: new URL('../../../../infra/envs/dev', import.meta.url).pathname,
+    cwd: new URL(`../../../../infra/envs/${env}`, import.meta.url).pathname,
     encoding: 'utf-8',
   })
   return JSON.parse(raw) as DevOutputs
@@ -56,7 +69,7 @@ function out<T>(outputs: Record<string, TerraformOutput>, key: string, fallbackE
   const fromEnv = process.env[fallbackEnv]
   if (fromEnv) return fromEnv as T
   throw new Error(
-    `Missing output "${key}". Set ${fallbackEnv} or run terraform in infra/envs/dev.`,
+    `Missing output "${key}". Set ${fallbackEnv} or run terraform in infra/envs/${terraformEnv()}.`,
   )
 }
 
@@ -139,7 +152,7 @@ async function main(): Promise<void> {
   } catch (err) {
     if (!(err instanceof Error) || !err.name.includes('ConditionalCheckFailed')) {
       if (err instanceof ResourceNotFoundException) {
-        throw new Error(`seed: table ${tableName} not found — is the dev stack applied?`)
+        throw new Error(`seed: table ${tableName} not found — is the ${terraformEnv()} stack applied?`)
       }
       throw err
     }
