@@ -79,6 +79,14 @@ export function useGenerationJob(jobId: string | null) {
     }
   }, [status, queryClient, sub])
 
+  // After the bounded poll window, refresh the gallery once so a job that
+  // completes late can appear without a manual reload.
+  useEffect(() => {
+    if (pollTimedOut) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.images(sub) })
+    }
+  }, [pollTimedOut, queryClient, sub])
+
   return { ...query, pollTimedOut }
 }
 

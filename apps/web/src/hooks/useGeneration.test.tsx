@@ -80,9 +80,10 @@ describe('useGenerationJob', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['images', 'user-1'] })
   })
 
-  it('stops after the bounded attempt cap and reports pollTimedOut', async () => {
+  it('stops after the bounded attempt cap, reports pollTimedOut, and refreshes the gallery', async () => {
     mocks.apiFetch.mockResolvedValue(jobResponse('processing'))
     const client = makeClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     const { result } = renderHook(() => useGenerationJob('job-1'), {
       wrapper: wrapperFor(client),
@@ -97,6 +98,7 @@ describe('useGenerationJob', () => {
     }
 
     expect(result.current.pollTimedOut).toBe(true)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['images', 'user-1'] })
     expect(mocks.apiFetch.mock.calls.length).toBeLessThanOrEqual(JOB_POLL_MAX_ATTEMPTS)
 
     const callsAtCap = mocks.apiFetch.mock.calls.length
