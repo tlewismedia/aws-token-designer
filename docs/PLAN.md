@@ -321,11 +321,15 @@ aws-token-designer/
 | Entity | PK | SK | Key attributes |
 |---|---|---|---|
 | Profile | `USER#<sub>` | `PROFILE` | `email`, `credits`, `createdAt`, `updatedAt` |
-| Image | `USER#<sub>` | `IMAGE#<ulid>` | `name`, `description`, `style`, `thumbKey`, `fullKey`, `status`, `createdAt` |
-| Sheet | `USER#<sub>` | `SHEET#<ulid>` | `name`, `template`, `images[]`, `createdAt` |
+| Image | `USER#<sub>` | `IMAGE#<ulid>` | `entityId` (= ulid), `name`, `description`, `style`, `thumbKey`, `fullKey`, `status`, `createdAt` |
+| Sheet | `USER#<sub>` | `SHEET#<ulid>` | `entityId` (= ulid), `name`, `template`, `images[]`, `createdAt` |
 | Payment | `PAYMENT#<sessionId>` | `PAYMENT` | `userId`, `status`, `creditsGranted`, `processedEventIds`, timestamps |
 | Job | `USER#<sub>` | `JOB#<ulid>` | `type`, `status`, `imageId`, `error`, `expiresAt` |
 | Rate limit | `USER#<sub>` | `RATE#<yyyy-mm-dd>` | `count`, `expiresAt` (TTL) |
+
+**GSI `byId`:** hash key `entityId`, projection `ALL`. Image and sheet items
+duplicate their ULID into `entityId` so the API can resolve a path id across
+all partitions before comparing ownership. (Other entities do not need it.)
 
 **Access patterns:**
 
@@ -333,6 +337,11 @@ aws-token-designer/
 - Images newest-first: `Query(PK, begins_with(SK, "IMAGE#"), ScanIndexForward=false)`.
 - Sheets newest-first: `Query(PK, begins_with(SK, "SHEET#"), ScanIndexForward=false)`.
 - Latest sheet: first query result.
+- Image/sheet by path id: `Query(IndexName=byId, entityId = :id)`, then compare
+  the item's `PK` with `USER#<sub>`. No item → **404**; item under another
+  user's partition → **403**; matching `PK` → proceed. This is the
+  ownership-check pattern for `GET`/`PATCH`/`DELETE` paths and for validating
+  `PATCH /sheets/{id}` `images[]` entries.
 - Add/remove image: read-modify-write sheet item (max 63 IDs).
 - Delete image: delete S3 objects, delete image item, update all sheets.
 - Payment fulfillment: `TransactWriteItems` with a condition on payment status + credit increment.

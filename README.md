@@ -22,6 +22,7 @@ A port of the Firebase Token Designer to AWS. Users generate or upload token ima
 | [`docs/PUBLIC_SAFE.md`](docs/PUBLIC_SAFE.md) | Public repository policy and checklist |
 | [`docs/adr/README.md`](docs/adr/README.md) | Architecture Decision Records index and template |
 | [`docs/AGENTS.md`](docs/AGENTS.md) | Agent orchestration rules (implementer/reviewer workflow) |
+| [`docs/TESTING.md`](docs/TESTING.md) | Automated checks, manual smoke checklist, deployed-dev status |
 | [`docs/diagrams/README.md`](docs/diagrams/README.md) | Diagram generation and polish workflow |
 
 ## Planned Stack

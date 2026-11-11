@@ -21,5 +21,12 @@ Use a **single DynamoDB table** with `USER#<sub>` partitions, ULID sort keys, on
 ## Consequences
 
 - Positive: minimal cost and operations; fast point lookups and ordered queries; no capacity planning.
-- Negative: access patterns must be designed up front; no ad-hoc joins; no GSI initially.
-- Follow-ups: document access patterns; add a GSI only if admin/email lookup is needed; keep PITR off for the demo.
+- Positive: the Phase 2 `byId` GSI (hash `entityId`, projection `ALL`) is
+  additive and lets the API look up an image/sheet id across partitions, so it
+  can answer 403 (owned by another user) instead of leaking a false 404.
+  Only image/sheet items carry `entityId`, and the index is on-demand like the
+  table, so the cost remains negligible.
+- Negative: access patterns must be designed up front; no ad-hoc joins; the
+  index adds a small write amplification on image/sheet writes.
+- Follow-ups: document access patterns in PLAN 6.5; add further GSIs only if
+  an admin/email lookup is needed; keep PITR off for the demo.
