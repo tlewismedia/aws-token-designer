@@ -45,13 +45,32 @@ export function validateUploadedBuffer(buf: Buffer): SupportedImageType {
 }
 
 /**
+ * Load sharp from the Lambda layer.
+ *
+ * The ESM resolver ignores NODE_PATH, so a bare `import('sharp')` fails at
+ * runtime even with the layer mounted (Lambda exposes layer code at
+ * /opt/nodejs/node_modules via NODE_PATH, and the bundle lives at /var/task —
+ * outside the layer dir, so directory walking cannot find it either).
+ * CJS resolution DOES honour NODE_PATH, so we resolve sharp with a require
+ * rooted at the bundle. Locally (tests) this resolves the devDependency from
+ * apps/api/node_modules — same call path, different root.
+ */
+async function loadSharp(): Promise<typeof import('sharp')['default']> {
+  const { createRequire } = await import('node:module')
+  const nodeRequire = createRequire(import.meta.url)
+  // With `export =` typings, the import type resolves to the factory function.
+  return nodeRequire('sharp') as unknown as typeof import('sharp')['default']
+}
+
+/**
  * Produce the re-encoded (EXIF-stripped) full image and its thumbnail.
- * sharp is imported lazily so the module also loads in unit tests that mock it.
+ * sharp comes from the Docker-built arm64 Lambda layer
+ * (scripts/build-sharp-layer.sh) and is kept external to the esbuild bundle.
  */
 export async function processImage(
   buf: Buffer,
 ): Promise<{ full: Buffer; thumb: Buffer; contentType: 'image/png' }> {
-  const { default: sharp } = await import('sharp')
+  const sharp = await loadSharp()
   const image = sharp(buf).rotate() // bake orientation, drop EXIF
   const full = await image.clone().png().toBuffer()
   const thumb = await sharp(buf)

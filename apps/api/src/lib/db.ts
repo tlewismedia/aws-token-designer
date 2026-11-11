@@ -74,20 +74,30 @@ export function toItem(entity: Record<string, unknown>): EntityItem {
   const id = entity.id as string
   if ('status' in entity && 'fullKey' in entity) {
     const { sub: _sub, id: _id, ...rest } = entity
-    return {
+    return stripUndefined({
       PK: `${PK_PREFIX}${sub}`,
       SK: `${SK_IMAGE_PREFIX}${id}`,
       entityId: id,
       ...rest,
-    } as unknown as ImageItem
+    }) as unknown as ImageItem
   }
   const { sub: _sub, id: _id, ...rest } = entity
-  return {
+  return stripUndefined({
     PK: `${PK_PREFIX}${sub}`,
     SK: `${SK_SHEET_PREFIX}${id}`,
     entityId: id,
     ...rest,
-  } as unknown as SheetItem
+  }) as unknown as SheetItem
+}
+
+/**
+ * Drop keys whose value is undefined. Optional entity fields (description,
+ * style, updatedAt) reach toItem as present-but-undefined keys, and the SDK
+ * marshalling step would otherwise throw (defense in depth alongside the
+ * removeUndefinedValues option on the production DocumentClient).
+ */
+function stripUndefined(item: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(item).filter(([, v]) => v !== undefined))
 }
 
 export function imageFromItem(item: ImageItem): Image {
@@ -391,12 +401,26 @@ function isConditionalCheckFailed(err: unknown): boolean {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Singleton used by the Lambda handler
-// ---------------------------------------------------------------------------
-
-function defaultDocClient(): DynamoDBDocumentClient {
-  return DynamoDBDocumentClient.from(new DynamoDBClient({}))
+/**
+ * Production-shaped DocumentClient. `removeUndefinedValues` is required:
+ * entity items legitimately carry optional fields and SDK v3 refuses to
+ * marshall undefined values (AWS SDK v3 error: "Pass options.removeUndefinedValues=true").
+ * The integration tests reuse this factory so they exercise the same
+ * configuration the Lambda runs with.
+ */
+export function createDocClient(options: { endpoint?: string; region?: string } = {}): DynamoDBDocumentClient {
+  return DynamoDBDocumentClient.from(
+    new DynamoDBClient(
+      options.endpoint
+        ? {
+            region: options.region ?? 'us-west-2',
+            endpoint: options.endpoint,
+            credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+          }
+        : {},
+    ),
+    { marshallOptions: { removeUndefinedValues: true } },
+  )
 }
 
 let singleton: Repo | null = null
@@ -406,7 +430,7 @@ export function getRepo(): Repo {
   if (!singleton) {
     const tableName = process.env.TABLE_NAME
     if (!tableName) throw internalError('TABLE_NAME is not set')
-    singleton = new Repo(defaultDocClient(), tableName)
+    singleton = new Repo(createDocClient(), tableName)
   }
   return singleton
 }

@@ -166,6 +166,10 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
   (`apps/api/dist/index.mjs`) comes from `scripts/build-lambda.sh`; the layer
   content (`apps/api/dist/sharp-layer`) from `scripts/build-sharp-layer.sh`
   (Docker, arm64, glibc base). Both artifacts must exist before `apply`.
+  Verify the layer + bundle together with
+  `./scripts/smoke-sharp-layer.sh` (runs the emitted bundle in an arm64
+  container with the layer mounted at `/opt/nodejs/node_modules` and proves
+  sharp resolves from the layer and processes a PNG).
 - `infra/modules/api/` — HTTP API, stage `api`, Cognito JWT authorizer
   (issuer derived from the user pool id), Lambda proxy integration, access
   logs, throttling 10 rps / burst 20.

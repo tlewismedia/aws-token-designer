@@ -20,7 +20,10 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
 
   jwt_configuration {
     audience = [var.cognito_client_id]
-    issuer   = "https://${var.cognito_user_pool_id}.auth.${data.aws_region.current.name}.amazoncognito.com"
+    # Cognito user-pool tokens carry iss = https://cognito-idp.<region>.amazonaws.com/<poolId>
+    # (not the hosted-UI domain — this pool has none). API Gateway compares
+    # iss exactly, so the hosted-UI form would 401 every authenticated route.
+    issuer = "https://cognito-idp.${data.aws_region.current.name}.amazonaws.com/${var.cognito_user_pool_id}"
   }
 }
 

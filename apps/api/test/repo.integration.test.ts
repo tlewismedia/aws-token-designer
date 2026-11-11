@@ -10,8 +10,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { CreateTableCommand, DeleteTableCommand, DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
-import { Repo, imageFromItem, sheetFromItem } from '../src/lib/db.js'
+import { Repo, imageFromItem, sheetFromItem, createDocClient } from '../src/lib/db.js'
 import { ulid } from '../src/lib/ulid.js'
 
 const enabled = process.env.RUN_DDB_INTEGRATION === '1'
@@ -22,9 +21,9 @@ const ddb = new DynamoDBClient({
   endpoint,
   credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
 })
-const doc = DynamoDBDocumentClient.from(ddb, {
-  marshallOptions: { removeUndefinedValues: true },
-})
+// Production-shaped client (same factory the Lambda handler uses) pointed at
+// DynamoDB Local — regression coverage for the removeUndefinedValues fix.
+const doc = createDocClient({ endpoint, region: 'us-test-1' })
 const TABLE = 'token-designer-test'
 
 describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
@@ -111,6 +110,31 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
       await expect(repo.getImageForSub('user-a', 'img-owned')).resolves.toMatchObject({
         entityId: 'img-owned',
       })
+    })
+
+    it('writes images with absent optional fields through the production-shaped client', async () => {
+      // Regression: SDK v3 throws on undefined values when
+      // removeUndefinedValues is not set; the factory used here matches the
+      // Lambda's client configuration and toItem strips undefined keys.
+      await repo.putImage(
+        imageFromItem({
+          PK: 'USER#user-a',
+          SK: 'IMAGE#img-nofields',
+          entityId: 'img-nofields',
+          name: 'No optional fields',
+          status: 'pending',
+          fullKey: 'users/user-a/images/img-nofields/full.png',
+          thumbKey: 'users/user-a/images/img-nofields/thumb.png',
+          contentType: 'image/webp',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          description: undefined,
+          style: undefined,
+        }),
+      )
+      const item = await repo.getImageForSub('user-a', 'img-nofields')
+      expect(item.description).toBeUndefined()
+      expect(item.style).toBeUndefined()
+      expect(item.contentType).toBe('image/webp')
     })
 
     it('lists images newest first', async () => {
