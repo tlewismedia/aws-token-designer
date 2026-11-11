@@ -63,6 +63,23 @@ async function expectSheetCount(page: Page, expected: number): Promise<void> {
   await expect.poll(() => readSheetCount(page)).toBe(expected)
 }
 
+/**
+ * Wait for a successful mutation under `/api/...`. The sheet mutations update
+ * optimistically, so asserting only the count could pass before the server
+ * rejects the change; waiting on the response makes the smoke fail when the
+ * API breaks.
+ */
+function waitForApi(page: Page, method: string, pathPart: string) {
+  return page.waitForResponse((response) => {
+    const path = new URL(response.url()).pathname
+    return (
+      response.request().method() === method &&
+      path.startsWith(`/api${pathPart}`) &&
+      response.ok()
+    )
+  })
+}
+
 async function signIn(page: Page): Promise<void> {
   await page.goto('/login')
   await page.getByLabel('Email').fill(E2E_EMAIL)
@@ -128,7 +145,9 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // gallery.
     const clearButton = page.getByRole('button', { name: 'Clear', exact: true })
     if (await clearButton.isEnabled()) {
+      const cleared = waitForApi(page, 'PATCH', '/sheets/')
       await clearButton.click()
+      await cleared
       await expectSheetCount(page, 0)
     }
 
@@ -160,7 +179,9 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // 4. Add the image to the sheet; the count rises.
     const addButton = figure.getByRole('button', { name: 'Add' })
     await expect(addButton).toBeEnabled()
+    const added = waitForApi(page, 'POST', '/sheets/')
     await addButton.click()
+    await added
     await expectSheetCount(page, 1)
 
     // 5. Print is gated on loaded thumbnails; the stub records the call.
@@ -170,19 +191,27 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await expect.poll(() => page.evaluate(() => window.__e2ePrintCalls ?? 0)).toBe(1)
 
     // 6. Remove the token by clicking its ×; the count falls.
+    const removed = waitForApi(page, 'DELETE', '/sheets/')
     await page.getByRole('button', { name: 'Remove token 1' }).click()
+    await removed
     await expectSheetCount(page, 0)
 
     // 7. Add again, then Clear empties the sheet.
+    const reAdded = waitForApi(page, 'POST', '/sheets/')
     await addButton.click()
+    await reAdded
     await expectSheetCount(page, 1)
+    const clearedAgain = waitForApi(page, 'PATCH', '/sheets/')
     await page.getByRole('button', { name: 'Clear', exact: true }).click()
+    await clearedAgain
     await expectSheetCount(page, 0)
     await expect(page.getByRole('button', { name: 'Clear', exact: true })).toBeDisabled()
 
     // 8. Delete the image; it leaves the gallery.
+    const deleted = waitForApi(page, 'DELETE', '/images/')
     page.once('dialog', (dialog) => void dialog.accept())
     await figure.getByRole('button', { name: 'Delete' }).click()
+    await deleted
     await expect(figure).toHaveCount(0)
 
     // 9. Logout returns to the marketing page.
