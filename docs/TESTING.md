@@ -97,6 +97,12 @@ or in CI's optional gated `e2e` job when `E2E_ROLE_ARN`, `E2E_BASE_URL`, and
 the `E2E_EMAIL`/`E2E_PASSWORD` secrets are configured (see "CI vs. manual
 checks" below). Vitest excludes `apps/web/e2e/**`.
 
+The CI job reads these repository settings (Settings → Secrets and variables →
+Actions): variables `E2E_ROLE_ARN`, `E2E_BASE_URL`, optional
+`E2E_USER_POOL_ID` and `AWS_REGION`; secrets `E2E_EMAIL`, `E2E_PASSWORD`. It
+skips when the variables are absent, and the run step exits 0 when the secrets
+are absent.
+
 ## Manual smoke checklist
 
 Against a deployed dev stage (or the Vite dev app pointed at it):
@@ -395,8 +401,11 @@ aws cloudwatch describe-alarm-history --alarm-name \
 
 The budget cannot be forced with `set-alarm-state`; verify delivery by
 temporarily lowering the amount/threshold with `aws budgets update-budget`,
-waiting for the next evaluation, and restoring it. Record the drill date and
-the email received for each alarm in the incident log
+waiting for the next evaluation, and restoring it. The SNS topic policy grants
+Budgets publish permission, so the notification reaches the same subscription.
+Note that the `api-5xx` alarm's `Stage` dimension is the HTTP API stage name,
+which is literally `api` (not the Terraform environment name). Record the drill
+date and the email received for each alarm in the incident log
 ([`docs/RUNBOOK.md`](RUNBOOK.md)).
 
 ## Production smoke sequence
