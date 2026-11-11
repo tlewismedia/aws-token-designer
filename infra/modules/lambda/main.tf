@@ -92,7 +92,9 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  reserved_concurrent_executions = 10 # PLAN 7.6
+  # PLAN 7.6 wants a reservation (10), but that requires account headroom;
+  # the dev account limit is 10, so envs/dev passes -1 (unreserved).
+  reserved_concurrent_executions = var.reserved_concurrency
 
   tags = var.tags
 }

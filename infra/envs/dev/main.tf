@@ -74,6 +74,11 @@ module "lambda" {
   source_dist     = "${path.root}/../../../apps/api/dist"
   sharp_layer_dir = "${path.root}/../../../apps/api/dist/sharp-layer"
 
+  # The account-level Lambda concurrency limit is 10 (UnreservedConcurrent
+  # Executions minimum is also 10), so no reservation fits. Prod should set
+  # 10 once the quota allows (PLAN 7.6).
+  reserved_concurrency = -1
+
   table_name        = module.dynamodb.table_name
   table_arn         = module.dynamodb.table_arn
   media_bucket_name = module.storage.media_bucket_name
