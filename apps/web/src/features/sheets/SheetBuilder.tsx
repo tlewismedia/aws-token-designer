@@ -18,7 +18,7 @@ export default function SheetBuilder() {
             <button
               className="btn btn-primary"
               onClick={() => setIsGenerateOpen(true)}
-              title="Generate image (Phase 3)"
+              title="Generate an image with AI"
             >
               ✨ Generate
             </button>
