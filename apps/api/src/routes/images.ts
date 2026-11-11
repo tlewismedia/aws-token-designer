@@ -62,10 +62,11 @@ export function registerImagesRoutes(app: App): void {
     return c.json({ images: withUrls })
   })
 
-  // Create a pending image record + presigned PUT (FR-5). The presigned URL
-  // is constrained to the declared content type and exact byte length
-  // (Content-Length is signed), so an oversized upload fails at S3, not in
-  // the Lambda (PLAN 6.6).
+  // Create a pending image record + presigned PUT (FR-5). The URL signs
+  // `content-length`, so an oversized upload fails at S3, not in the Lambda
+  // (PLAN 6.6). `content-type` is not signed (the SDK treats it as
+  // unsignable), so the real type control is magic-byte validation on
+  // complete.
   app.post('/images/upload-url', async (c) => {
     const body = await parseJsonBody(c, uploadUrlRequestSchema)
     if (body.size > MAX_UPLOAD_BYTES) {

@@ -18,7 +18,7 @@ function Token({
 }) {
   return (
     <div className="token">
-      {url && (
+      {url ? (
         <img
           src={url}
           alt=""
@@ -27,6 +27,11 @@ function Token({
           onLoad={onImageReady}
           onError={onImageReady}
         />
+      ) : (
+        // The sheet references an image the gallery no longer has (deleted or
+        // not loaded yet): keep a tile so indices stay aligned with the
+        // server-side `sheet.images` array.
+        <div className="token-placeholder" aria-label="Unresolved token" />
       )}
       <button
         className="remove-token"
@@ -58,7 +63,15 @@ export default function TokenSheet() {
     .filter((url): url is string => Boolean(url))
     .slice(0, MAX_TOKENS)
   const count = imageUrls.length
-  const emptyCount = Math.max(0, MAX_TOKENS - count)
+
+  // One tile per entry in `sheet.images` — including unresolved ids — so the
+  // remove handler receives the index the server will act on.
+  const tokens = (sheet?.images ?? []).slice(0, MAX_TOKENS).map((imageId, index) => ({
+    imageId,
+    index,
+    url: imageMap.get(imageId)?.thumbUrl,
+  }))
+  const emptyCount = Math.max(0, MAX_TOKENS - tokens.length)
 
   // Wait for thumbnails before opening the print dialog (FR-11).
   // The signature is kept in state with the count so a sheet change never
@@ -143,13 +156,13 @@ export default function TokenSheet() {
       </div>
       <div className="printable">
         <div className="image-grid">
-          {imageUrls.map((url, i) => (
+          {tokens.map((token) => (
             <Token
-              key={`${i}-${url}`}
-              url={url}
-              index={i}
+              key={`${token.index}-${token.imageId}`}
+              url={token.url}
+              index={token.index}
               onRemove={(index) => removeToken.mutate(index)}
-              onImageReady={() => handleImageReady(i)}
+              onImageReady={() => handleImageReady(token.index)}
             />
           ))}
           {Array.from({ length: emptyCount }, (_, i) => (

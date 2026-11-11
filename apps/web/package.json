@@ -12,6 +12,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@aws-token-designer/shared": "0.1.0",
     "@tanstack/react-query": "^5.107.1",
     "aws-amplify": "^6.22.2",
     "react": "^19.3.1",

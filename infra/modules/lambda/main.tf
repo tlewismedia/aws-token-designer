@@ -3,6 +3,13 @@
 # dist/index.mjs (scripts/build-lambda.sh), archive_file zips it, and sharp
 # itself is NOT bundled — it comes from the Docker-built layer in this module.
 
+# Single source for the function name so the log group can be declared
+# without referencing the function resource (which depends on the log group
+# below — referencing aws_lambda_function here would create a graph cycle).
+locals {
+  api_function_name = "${var.project}-${var.stage}-api"
+}
+
 data "archive_file" "api" {
   type        = "zip"
   output_path = "${path.module}/.terraform/api.zip"
@@ -69,7 +76,7 @@ resource "aws_iam_role_policy" "api" {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name = "${var.project}-${var.stage}-api"
+  function_name = local.api_function_name
   description   = "Core API: profile, sheets, images (presign + processing)."
   runtime       = "nodejs22.x"
   handler       = "index.handler"
@@ -82,6 +89,10 @@ resource "aws_lambda_function" "api" {
   source_code_hash = data.archive_file.api.output_base64sha256
 
   layers = [aws_lambda_layer_version.sharp.arn]
+
+  # Create the (retention-configured) log group before the function so Lambda
+  # cannot auto-create an unbounded-retention one first.
+  depends_on = [aws_cloudwatch_log_group.api]
 
   environment {
     variables = {
@@ -100,7 +111,7 @@ resource "aws_lambda_function" "api" {
 }
 
 resource "aws_cloudwatch_log_group" "api" {
-  name              = "/aws/lambda/${aws_lambda_function.api.function_name}"
+  name              = "/aws/lambda/${local.api_function_name}"
   retention_in_days = 7 # dev; prod gets 30 days in Phase 6
 
   tags = var.tags

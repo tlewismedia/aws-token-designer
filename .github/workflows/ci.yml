@@ -9,6 +9,11 @@ jobs:
   node:
     name: Node (lint, typecheck, build, test)
     runs-on: ubuntu-latest
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,6 +25,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      - name: Integration tests (DynamoDB Local)
+        run: RUN_DDB_INTEGRATION=1 npm test --workspace @aws-token-designer/api
 
   terraform:
     name: Terraform (fmt, validate)
