@@ -422,7 +422,7 @@ creation), which keeps the cap binding under repeated failures.
 - Environments: `dev`, `prod`; separate state files under `infra/envs/<env>`.
 - Backend: S3 bucket (versioned, encrypted, public access blocked) + native S3 lock (`use_lockfile = true`).
 - Bootstrap: `infra/bootstrap` creates the state bucket/lock before the first `init`.
-- Stateful resources are protected in prod (DynamoDB/Cognito native deletion protection; prod-only S3 bucket policies denying `DeleteBucket`); dev may be destroyed.
+- Stateful resources are protected in prod: DynamoDB/Cognito native deletion protection, prod-only S3 bucket policies denying `DeleteBucket` (out-of-band deletes), and a prod-only `terraform_data.deletion_guard` with `lifecycle.prevent_destroy = true` (blocks a full `terraform destroy`). Dev may be destroyed.
 - Tags: `Project=token-designer`, `Stage=<env>`, `ManagedBy=terraform`.
 
 ### 7.2 Modules and Resources

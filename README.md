@@ -69,7 +69,8 @@ drill, prod smoke, and rollback drill are in
 
 Production stateful resources are protected against destruction (DynamoDB and
 Cognito native deletion protection; prod-only S3 bucket policies denying
-`DeleteBucket`); see
+`DeleteBucket` for out-of-band deletes; a prod `terraform_data` guard with
+`prevent_destroy = true` that blocks a full `terraform destroy`); see
 [`docs/TERRAFORM.md`](docs/TERRAFORM.md#prevent_destroy--deletion-protection).
 
 ## Diagrams

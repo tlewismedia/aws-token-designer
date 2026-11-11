@@ -322,7 +322,7 @@ flowchart TB
 
 Source: [`diagrams/aws-deployment.d2`](diagrams/aws-deployment.d2). Regenerate with `./scripts/render-diagram.sh`. This is the D2 snapshot; the Mermaid views above are the living, PR-reviewed views. See [`diagrams/README.md`](diagrams/README.md).
 
-**Environments:** `dev` and `prod`, separate Terraform state, same module composition. Dev resources may be destroyed; prod stateful resources use native DynamoDB/Cognito deletion protection and prod-only S3 bucket policies that deny `s3:DeleteBucket`.
+**Environments:** `dev` and `prod`, separate Terraform state, same module composition. Dev resources may be destroyed; prod stateful resources use native DynamoDB/Cognito deletion protection, prod-only S3 bucket policies that deny `s3:DeleteBucket` (out-of-band deletes), and a prod-only `terraform_data.deletion_guard` with `lifecycle.prevent_destroy = true` that makes a full `terraform destroy` fail at the guard.
 
 **No VPC:** all Lambda functions run outside a VPC. Internet access for Stripe/Stability is direct; AWS services are reached via public endpoints.
 

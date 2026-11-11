@@ -162,11 +162,14 @@ closest valid, prod-gated mechanism:
 | `cloudfront` | Prod-only `Deny s3:DeleteBucket` statement appended to the existing web-bucket policy (`var.protect_from_deletion`, prod `true`). Dev leaves it off. |
 
 Why a bucket policy: S3 has no native deletion-protection attribute, and
-`lifecycle` cannot read a variable. An explicit `Deny` wins over the operator's
-IAM `Allow`, so `terraform destroy` fails at `DeleteBucket`. This protects
-against IAM principals (the normal operator/deploy path); the AWS account root
-is not constrained by bucket policies, so treat it as defence-in-depth rather
-than an absolute lock.
+`lifecycle` cannot read a variable. The bucket-policy `Deny` wins over the
+operator's IAM `Allow`, so it blocks out-of-band/console/IAM deletes. It is
+defence-in-depth, **not** the Terraform-level blocker: Terraform destroys the
+policy before the bucket. The actual `prevent_destroy` guarantee comes from the
+prod-only `terraform_data.deletion_guard` in `infra/envs/prod/main.tf`
+(`lifecycle { prevent_destroy = true }`), so a full `terraform destroy` on prod
+fails at that guard. (Targeted `terraform destroy -target=...` and
+`terraform state rm` can bypass a lifecycle guard — use them deliberately.)
 
 `infra/envs/prod` passes `prevent_destroy = true` to dynamodb/storage/cognito
 and `protect_from_deletion = true` to cloudfront. Dev leaves all of them false,
