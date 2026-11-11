@@ -8,7 +8,11 @@ data "archive_file" "presignup" {
   source {
     content  = <<-EOT
       // Demo only: auto-confirm every sign-up so login works without email verification.
-      exports.handler = async (event) => {
+      // NOTE: index.mjs is ESM scope — no `exports` object. A CommonJS
+      // `exports.handler` assignment here fails at runtime with
+      // "exports is not defined in ES module scope" (caught 2026-11-11
+      // during Phase 1 sign-up verification).
+      export const handler = async (event) => {
         event.response.autoConfirmUser = true;
         event.response.autoVerifyEmail = true;
         return event;
