@@ -32,3 +32,18 @@ output "ssm_parameter_names" {
   description = "SSM parameter NAMES (values are created out-of-band, never in state)."
   value       = local.ssm_parameter_names
 }
+
+output "api_url" {
+  description = "execute-api URL (stage api). Set as VITE proxy target for local dev."
+  value       = module.api.api_url
+}
+
+output "api_lambda_name" {
+  description = "Name of the api Lambda function."
+  value       = module.lambda.lambda_name
+}
+
+output "sharp_layer_arn" {
+  description = "ARN of the sharp Lambda layer."
+  value       = module.lambda.sharp_layer_arn
+}

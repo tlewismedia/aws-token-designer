@@ -61,3 +61,35 @@ module "monitoring" {
   alert_email = var.alert_email
   tags        = local.tags
 }
+
+# Phase 2: api Lambda + HTTP API. The sharp layer and bundle must exist
+# before apply: ./scripts/build-lambda.sh && ./scripts/build-sharp-layer.sh
+module "lambda" {
+  source = "../../modules/lambda"
+
+  project = var.project
+  stage   = var.stage
+  tags    = local.tags
+
+  source_dist     = "${path.root}/../../apps/api/dist"
+  sharp_layer_dir = "${path.root}/../../apps/api/dist/sharp-layer"
+
+  table_name        = module.dynamodb.table_name
+  table_arn         = module.dynamodb.table_arn
+  media_bucket_name = module.storage.media_bucket_name
+  media_bucket_arn  = module.storage.media_bucket_arn
+}
+
+module "api" {
+  source = "../../modules/api"
+
+  project = var.project
+  stage   = var.stage
+  tags    = local.tags
+
+  cognito_user_pool_id = module.cognito.user_pool_id
+  cognito_client_id    = module.cognito.client_id
+
+  lambda_invoke_arn = module.lambda.lambda_invoke_arn
+  lambda_name       = module.lambda.lambda_name
+}

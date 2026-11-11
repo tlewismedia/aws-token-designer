@@ -1,0 +1,38 @@
+{
+  "name": "@aws-token-designer/api",
+  "private": true,
+  "version": "0.1.0",
+  "description": "api Lambda: Hono router for profile, sheets, and images",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --external:sharp '--banner:js=import{createRequire as __createRequire} from \"node:module\"; const require = __createRequire(import.meta.url);' --sourcemap",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed": "tsx src/scripts/seed-dev.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1166.0",
+    "@aws-sdk/client-dynamodb": "^3.962.0",
+    "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/lib-dynamodb": "^3.962.0",
+    "@aws-sdk/s3-request-presigner": "^3.962.0",
+    "@aws-token-designer/shared": "*",
+    "@hono/aws-lambda": "^1.0.1",
+    "hono": "^4.10.10",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/aws-lambda": "^8.10.159",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "sharp": "^0.35.5",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vitest": "^5.1.0"
+  }
+}
