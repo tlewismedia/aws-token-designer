@@ -32,6 +32,10 @@ export const SK_SHEET_PREFIX = 'SHEET#'
 export const SK_JOB_PREFIX = 'JOB#'
 export const SK_RATE_PREFIX = 'RATE#'
 
+/** Payments are keyed by Stripe session id, not by user (PLAN 6.5/6.8). */
+export const PK_PAYMENT_PREFIX = 'PAYMENT#'
+export const SK_PAYMENT = 'PAYMENT'
+
 // ---------------------------------------------------------------------------
 // AI generation guardrails (PLAN 6.7, ADR-0008)
 // ---------------------------------------------------------------------------
@@ -73,6 +77,17 @@ export const JOB_PROCESSING_LEASE_MS = 150_000
 
 /** Stability request timeout (milliseconds). */
 export const STABILITY_TIMEOUT_MS = 90_000
+
+// ---------------------------------------------------------------------------
+// Payments (PLAN 6.8)
+// ---------------------------------------------------------------------------
+
+/** Credits granted by one completed purchase (server-controlled default). */
+export const DEFAULT_CREDITS_PER_PURCHASE = 10
+
+/** Return-page status polling cadence and bound (a few polls, then Refresh). */
+export const CHECKOUT_POLL_INTERVAL_MS = 2000
+export const CHECKOUT_POLL_MAX_ATTEMPTS = 5
 
 /** Name of the sheet created on first login. */
 export const DEFAULT_SHEET_NAME = 'Default Sheet'

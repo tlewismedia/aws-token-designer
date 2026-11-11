@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   addTokenRequestSchema,
+  checkoutSessionResponseSchema,
+  checkoutSessionStatusResponseSchema,
   errorEnvelopeSchema,
   generateImageRequestSchema,
   imageSchema,
   jobSchema,
   meResponseSchema,
+  paymentSchema,
   sheetSchema,
   uploadUrlRequestSchema,
 } from '../src/index.js'
@@ -168,6 +171,54 @@ describe('generateImageRequestSchema', () => {
     expect(() =>
       generateImageRequestSchema.parse({ prompt: 'x', style: 'impressionist' }),
     ).toThrow()
+  })
+})
+
+describe('paymentSchema', () => {
+  const pending = {
+    id: 'cs_test_123',
+    userId: 'user-1',
+    status: 'pending',
+    creditsGranted: 0,
+    creditsToGrant: 10,
+    amountTotal: 500,
+    processedEventIds: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+  }
+
+  it('accepts a pending payment and a fulfilled payment', () => {
+    expect(paymentSchema.parse(pending).status).toBe('pending')
+    const succeeded = paymentSchema.parse({
+      ...pending,
+      status: 'succeeded',
+      creditsGranted: 10,
+      processedEventIds: ['evt_1'],
+    })
+    expect(succeeded.creditsGranted).toBe(10)
+    expect(succeeded.processedEventIds).toEqual(['evt_1'])
+  })
+
+  it('rejects unknown statuses and non-positive grants', () => {
+    expect(() => paymentSchema.parse({ ...pending, status: 'refunded' })).toThrow()
+    expect(() => paymentSchema.parse({ ...pending, creditsToGrant: 0 })).toThrow()
+  })
+})
+
+describe('checkout response schemas', () => {
+  it('validates the session creation response', () => {
+    const parsed = checkoutSessionResponseSchema.parse({
+      sessionId: 'cs_test_123',
+      clientSecret: 'cs_test_123_secret_abc',
+    })
+    expect(parsed.clientSecret).toBe('cs_test_123_secret_abc')
+  })
+
+  it('validates the status response without ownership data', () => {
+    const parsed = checkoutSessionStatusResponseSchema.parse({
+      status: 'succeeded',
+      creditsGranted: 10,
+    })
+    expect(parsed).toEqual({ status: 'succeeded', creditsGranted: 10 })
   })
 })
 

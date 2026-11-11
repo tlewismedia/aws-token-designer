@@ -6,6 +6,7 @@
 //   Sheet   : PK USER#<sub>  SK SHEET#<ulid>       (entityId = ulid, name, images[])
 //   Job     : PK USER#<sub>  SK JOB#<ulid>         (entityId = ulid, status, imageId, prompt)
 //   Rate    : PK USER#<sub>  SK RATE#<yyyy-mm-dd>  (count, expiresAt TTL)
+//   Payment : PK PAYMENT#<sessionId> SK PAYMENT     (userId, status, credits)
 //
 // Image/sheet/job items carry an `entityId` attribute indexed by the `byId`
 // GSI so handlers can distinguish "does not exist" (404) from "owned by
@@ -19,9 +20,18 @@ import {
   QueryCommand,
   UpdateCommand,
   DeleteCommand,
+  TransactWriteCommand,
   type NativeAttributeValue,
 } from '@aws-sdk/lib-dynamodb'
-import type { Image, Job, JobStatus, Profile, Sheet } from '@aws-token-designer/shared'
+import type {
+  Image,
+  Job,
+  JobStatus,
+  Payment,
+  PaymentStatus,
+  Profile,
+  Sheet,
+} from '@aws-token-designer/shared'
 import {
   DAILY_GENERATION_CAP,
   DEFAULT_CREDITS,
@@ -29,10 +39,12 @@ import {
   DEFAULT_SHEET_TEMPLATE,
   JOB_PROCESSING_LEASE_MS,
   MAX_SHEET_TOKENS,
+  PK_PAYMENT_PREFIX,
   PK_PREFIX,
   RATE_TTL_DAYS,
   SK_IMAGE_PREFIX,
   SK_JOB_PREFIX,
+  SK_PAYMENT,
   SK_PROFILE,
   SK_RATE_PREFIX,
   SK_SHEET_PREFIX,
@@ -87,6 +99,19 @@ export interface JobItem extends EntityItem {
   expiresAt?: number
 }
 
+export interface PaymentItem {
+  PK: string
+  SK: typeof SK_PAYMENT
+  userId: string
+  status: PaymentStatus
+  creditsGranted: number
+  creditsToGrant: number
+  amountTotal: number
+  processedEventIds: string[]
+  createdAt: string
+  updatedAt?: string
+}
+
 /** Jobs carry `entityId` so the API can answer 403 vs 404 for path ids. */
 export function toJobItem(job: Job): JobItem {
   const { sub, id, ...rest } = job
@@ -112,6 +137,30 @@ export function jobFromItem(item: JobItem): Job {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     expiresAt: item.expiresAt,
+  }
+}
+
+/** Payment items are keyed by Stripe session id, not by user partition. */
+export function toPaymentItem(payment: Payment): PaymentItem {
+  const { id, ...rest } = payment
+  return stripUndefined({
+    PK: `${PK_PAYMENT_PREFIX}${id}`,
+    SK: SK_PAYMENT,
+    ...rest,
+  }) as unknown as PaymentItem
+}
+
+export function paymentFromItem(item: PaymentItem): Payment {
+  return {
+    id: item.PK.slice(PK_PAYMENT_PREFIX.length),
+    userId: item.userId,
+    status: item.status,
+    creditsGranted: item.creditsGranted ?? 0,
+    creditsToGrant: item.creditsToGrant,
+    amountTotal: item.amountTotal,
+    processedEventIds: item.processedEventIds ?? [],
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   }
 }
 
@@ -466,6 +515,106 @@ export class Repo {
     }
   }
 
+  // -- Payments --------------------------------------------------------------
+
+  /** Create the pending PAYMENT item for a new Checkout Session. */
+  async putPayment(payment: Payment): Promise<void> {
+    await this.doc.send(
+      new PutCommand({ TableName: this.table, Item: toPaymentItem(payment) }),
+    )
+  }
+
+  /**
+   * Direct lookup by Stripe session id (`PAYMENT#<id>` / `PAYMENT`). This is
+   * already a unique key, so the `byId` GSI must not be used here.
+   */
+  async getPayment(sessionId: string): Promise<PaymentItem | null> {
+    const res = await this.doc.send(
+      new GetCommand({
+        TableName: this.table,
+        Key: { PK: `${PK_PAYMENT_PREFIX}${sessionId}`, SK: SK_PAYMENT },
+      }),
+    )
+    return (res.Item as PaymentItem | undefined) ?? null
+  }
+
+  /** Ownership-checked payment lookup (404 missing, 403 cross-user). */
+  async getPaymentForSub(sub: string, sessionId: string): Promise<PaymentItem> {
+    const item = await this.getPayment(sessionId)
+    if (!item) throw notFound('Payment not found')
+    if (item.userId !== sub) throw forbidden('Payment belongs to another user')
+    return item
+  }
+
+  /**
+   * Idempotent fulfillment in one transaction (PLAN 6.8):
+   *   1. pending payment -> succeeded, recording the webhook event id, and
+   *   2. ADD credits to the existing profile.
+   *
+   * The payment condition is re-evaluated at commit time: the status must be
+   * `pending`, the owner must match, and the event id must not already be in
+   * `processedEventIds`. A replay (or any second event after success) cancels
+   * the transaction with a conditional check and returns false, so credits
+   * can never be granted twice. Other cancellation reasons (for example a
+   * missing profile) are rethrown so the handler answers 5xx and Stripe
+   * retries.
+   */
+  async fulfillPayment(input: {
+    sessionId: string
+    userId: string
+    eventId: string
+    credits: number
+  }): Promise<boolean> {
+    const now = nowIso()
+    try {
+      await this.doc.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Update: {
+                TableName: this.table,
+                Key: {
+                  PK: `${PK_PAYMENT_PREFIX}${input.sessionId}`,
+                  SK: SK_PAYMENT,
+                },
+                UpdateExpression:
+                  'SET #status = :succeeded, creditsGranted = creditsToGrant, processedEventIds = list_append(if_not_exists(processedEventIds, :empty), :events), updatedAt = :now',
+                ConditionExpression:
+                  '#status = :pending AND #userId = :userId AND NOT contains(processedEventIds, :eventId)',
+                ExpressionAttributeNames: { '#status': 'status', '#userId': 'userId' },
+                ExpressionAttributeValues: {
+                  ':succeeded': 'succeeded',
+                  ':pending': 'pending',
+                  ':userId': input.userId,
+                  ':eventId': input.eventId,
+                  ':events': [input.eventId],
+                  ':empty': [],
+                  ':now': now,
+                },
+              },
+            },
+            {
+              Update: {
+                TableName: this.table,
+                Key: { PK: `${PK_PREFIX}${input.userId}`, SK: SK_PROFILE },
+                UpdateExpression: 'SET updatedAt = :now ADD credits :credits',
+                ConditionExpression: 'attribute_exists(PK)',
+                ExpressionAttributeValues: {
+                  ':credits': input.credits,
+                  ':now': now,
+                },
+              },
+            },
+          ],
+        }),
+      )
+      return true
+    } catch (err) {
+      if (isPaymentConditionFailed(err)) return false
+      throw err
+    }
+  }
+
   // -- Daily generation cap --------------------------------------------------
 
   /**
@@ -691,6 +840,29 @@ function isConditionalCheckFailed(err: unknown): boolean {
     'name' in err &&
     (err as { name?: string }).name === 'ConditionalCheckFailedException'
   )
+}
+
+interface TransactionCancellationReason {
+  Code?: string
+}
+
+/**
+ * True when a TransactWriteItems was cancelled by the *payment* condition
+ * (replay / already succeeded). The payment update is transaction item 0, so
+ * a conditional cancellation there is the idempotent no-op path. A failure on
+ * the profile update (item 1) is a real error and must bubble up as 5xx.
+ */
+function isPaymentConditionFailed(err: unknown): boolean {
+  if (
+    typeof err !== 'object' ||
+    err === null ||
+    (err as { name?: string }).name !== 'TransactionCanceledException'
+  ) {
+    return false
+  }
+  const reasons = (err as { CancellationReasons?: TransactionCancellationReason[] })
+    .CancellationReasons
+  return reasons?.[0]?.Code === 'ConditionalCheckFailed'
 }
 
 /**
