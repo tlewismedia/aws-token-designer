@@ -1,11 +1,25 @@
+# S3 has no native deletion-protection attribute, and Terraform's
+# `lifecycle.prevent_destroy` accepts only literal values (a module variable
+# cannot drive it). The buckets are therefore protected unconditionally: an
+# accidental `terraform destroy` fails on both dev and prod. To tear dev down,
+# temporarily remove the `prevent_destroy` line below (or remove the buckets
+# from state and delete them manually) — see docs/TERRAFORM.md "prevent_destroy".
 resource "aws_s3_bucket" "web" {
   bucket = "${var.project}-${var.stage}-web"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   tags = var.tags
 }
 
 resource "aws_s3_bucket" "media" {
   bucket = "${var.project}-${var.stage}-media"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   tags = var.tags
 }

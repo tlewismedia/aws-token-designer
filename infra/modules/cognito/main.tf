@@ -75,6 +75,12 @@ resource "aws_cognito_user_pool" "main" {
     pre_sign_up = aws_lambda_function.presignup.arn
   }
 
+  # Native deletion protection (Terraform lifecycle.prevent_destroy only
+  # accepts literal values, so a module variable cannot drive it). Prod sets
+  # prevent_destroy = true, which blocks deleting the pool (and its users);
+  # dev leaves it false so the stack can be torn down.
+  deletion_protection = var.prevent_destroy ? "ACTIVE" : "INACTIVE"
+
   tags = var.tags
 }
 
