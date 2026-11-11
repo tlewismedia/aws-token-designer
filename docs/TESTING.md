@@ -120,6 +120,65 @@ curl -i -X POST -H "Authorization: Bearer $TOKEN" \
 `PATCH /sheets/{id}` with `images` validates every id: foreign → 403, unknown
 → 404, non-ready → 400, `[]` → 200, more than 63 entries → 400.
 
+## AI generation smoke (Phase 3)
+
+Unit coverage (offline, no Stability key needed):
+
+```sh
+npm test --workspace @aws-token-designer/api   # worker + jobs route tests
+npm test --workspace @aws-token-designer/shared # generate/job schemas
+```
+
+Live `dev` checks (replace `$API` / `$TOKEN` as above). Generation is async:
+`POST` returns `202 { jobId }`, then poll `GET /jobs/{jobId}` every 2s.
+
+```sh
+# 1. Submit a generation.
+curl -i -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"a goblin chief","style":"anime"}' \
+  "$API/images/generate"                              # 202 { "jobId": "..." }
+
+# 2. Poll the job until terminal.
+curl -i -H "Authorization: Bearer $TOKEN" "$API/jobs/$JOB_ID"
+#    pending → processing → succeeded | failed
+
+# 3. Validation + ownership.
+curl -i -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' \
+  "$API/images/generate"                              # 400 VALIDATION_ERROR
+curl -i -H "Authorization: Bearer $TOKEN" \
+  "$API/jobs/$OTHER_USERS_JOB_ID"                     # 403 FORBIDDEN
+curl -i -H "Authorization: Bearer $TOKEN" \
+  "$API/jobs/does-not-exist"                          # 404 NOT_FOUND
+```
+
+Guardrails (current environment has **no Stability key**, so the live success
+path cannot be verified until an operator creates the SecureString):
+
+- Missing key → job `failed` with `error: "GENERATION_FAILED"`; client stops
+  polling and shows a safe message.
+- `/token-designer/dev/generation-enabled` set to anything other than `true`
+  (or missing) → job `failed` with `error: "GENERATION_DISABLED"`, and
+  Stability is never called.
+- The 21st generation for a user in one UTC day → `429 RATE_LIMITED`; the
+  atomic `RATE#<yyyy-mm-dd>` counter never exceeds 20.
+- Lambda async retries cannot duplicate images: only the first attempt can
+  move the job `pending → processing`.
+
+DynamoDB inspection:
+
+```sh
+aws dynamodb query --table-name "$TABLE" \
+  --key-condition-expression 'PK = :pk AND begins_with(SK, :job)' \
+  --expression-attribute-values '{":pk":{"S":"USER#<sub>"},":job":{"S":"JOB#"}}' \
+  --region us-west-2
+```
+
+Alarms: `token-designer-dev-generation-count-daily` (>50/day) and
+`token-designer-dev-estimated-ai-cost-daily` (>$5/day), both Sum over 86400s
+against namespace `TokenDesigner`, dimension `Stage=dev`.
+
 ## Deployed dev status
 
 Last verified: **2026-11-11** (dev stage, after the Phase 2 deploy).
@@ -139,3 +198,9 @@ Last verified: **2026-11-11** (dev stage, after the Phase 2 deploy).
   registration. See "Browser E2E (Playwright)" above.
 
 Update this section when the browser/print pass is recorded.
+
+Phase 3 (`generateWorker`, generation routes, cap, kill switch, AI alarms) is
+implemented and unit-tested in this branch. Live dev verification of the
+success path is pending a Stability SecureString; the missing-key,
+kill-switch, cap-429, and job-auth paths are covered by the smoke checklist
+above.

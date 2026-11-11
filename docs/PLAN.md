@@ -327,9 +327,10 @@ aws-token-designer/
 | Job | `USER#<sub>` | `JOB#<ulid>` | `type`, `status`, `imageId`, `error`, `expiresAt` |
 | Rate limit | `USER#<sub>` | `RATE#<yyyy-mm-dd>` | `count`, `expiresAt` (TTL) |
 
-**GSI `byId`:** hash key `entityId`, projection `ALL`. Image and sheet items
-duplicate their ULID into `entityId` so the API can resolve a path id across
-all partitions before comparing ownership. (Other entities do not need it.)
+**GSI `byId`:** hash key `entityId`, projection `ALL`. Image, sheet, and job
+items duplicate their ULID into `entityId` so the API can resolve a path id
+across all partitions before comparing ownership (including the `403` vs
+`404` answer for `GET /jobs/{jobId}`). (Other entities do not need it.)
 
 **Access patterns:**
 
@@ -375,7 +376,14 @@ all partitions before comparing ownership. (Other entities do not need it.)
 5. Client polls `GET /api/jobs/{jobId}` every 2s until terminal; then invalidates images.
 6. On failure, the job records the error; credits are not deducted in v1.
 
-**Guardrails:** daily cap (default 20/user/day), kill switch, worker reserved concurrency, API throttling.
+**Guardrails:** daily cap (default 20/user/day, `RATE#<yyyy-mm-dd>` items with
+a conditional increment), kill switch (fail closed), API throttling, and the
+`GenerationCount` / `EstimatedAICost` EMF metrics (namespace `TokenDesigner`,
+dimension `Stage`) alarmed in the monitoring module. The worker is currently
+**unreserved**: the dev account's Lambda concurrency limit is 10, so a
+reservation (ADR-0008's 5) does not fit until the quota is raised. Failed
+submissions still consume a daily slot (the increment runs before job
+creation), which keeps the cap binding under repeated failures.
 
 ### 6.8 Payments
 
@@ -457,7 +465,11 @@ all partitions before comparing ownership. (Other entities do not need it.)
 - SNS email subscription.
 - Log retention: 7 days dev, 30 days prod.
 - S3 lifecycle: abort incomplete multipart uploads after 1 day.
-- Reserved concurrency: API 10, worker 5.
+- Reserved concurrency: API 10, worker 5. **Dev deviation (Phase 3):** the
+  account-level Lambda concurrency limit is 10, leaving no headroom for any
+  reservation, so both functions run unreserved in `dev` until the quota is
+  raised. `generateWorker` keeps its 120s timeout and async retries for
+  resilience.
 - API Gateway throttling: 10 rps, burst 20.
 - Kill switch SSM parameter.
 
@@ -574,6 +586,10 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 ### Phase 3 — AI generation (1–2 days)
 
 - `generateWorker`, job records, polling, Stability integration, thumbnails, daily cap, kill switch, AI metrics.
+- Implemented in issue #4: `POST /images/generate` → `202 { jobId }`,
+  `GET /jobs/{jobId}` polling, `JOB`/`RATE#<date>` items, worker idempotency
+  (`pending → processing` conditional), safe error codes on the job, EMF
+  `GenerationCount` / `EstimatedAICost`, and daily count/cost alarms.
 - **Acceptance:** generate end-to-end; job status transitions; failure handling; cap enforced.
 
 ### Phase 4 — Payments (1 day)
