@@ -19,6 +19,20 @@ resource "aws_dynamodb_table" "main" {
     type = "S"
   }
 
+  attribute {
+    name = "entityId"
+    type = "S"
+  }
+
+  # byId GSI: lets the api Lambda look up an image/sheet id across user
+  # partitions so it can answer 404 (missing) vs 403 (owned by another user)
+  # — see docs/PLAN.md section 6.5 and the route ownership checks.
+  global_secondary_index {
+    name            = "byId"
+    hash_key        = "entityId"
+    projection_type = "ALL"
+  }
+
   ttl {
     attribute_name = "expiresAt" # jobs + daily RATE items expire out
     enabled        = true
