@@ -23,7 +23,7 @@ variable "alert_email" {
 }
 
 variable "media_allowed_origins" {
-  description = "CORS origins for presigned PUT to the media bucket. Add the CloudFront domain in Phase 5."
+  description = "Extra CORS origins for presigned PUT to the media bucket. The CloudFront distribution origin is appended automatically by the cloudfront module."
   type        = list(string)
   default     = ["http://localhost:5173"]
 }
@@ -35,9 +35,9 @@ variable "stripe_price_id" {
 }
 
 variable "web_origin" {
-  description = "SPA origin for the embedded Checkout return URL."
+  description = "SPA origin for the embedded Checkout return URL. Defaults to empty; after the CloudFront distribution exists set it to the web_url output (see infra/envs/dev/main.tf). Stripe is disabled in dev, so an empty value is not blocking."
   type        = string
-  default     = "http://localhost:5173"
+  default     = ""
 }
 
 variable "credits_per_purchase" {

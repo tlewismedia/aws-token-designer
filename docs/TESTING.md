@@ -60,6 +60,19 @@ Prerequisites:
   `VITE_COGNITO_USER_POOL_ID` in `.env.local`) the test still passes but logs a
   warning and leaves the user behind.
 
+Set `E2E_BASE_URL` to run the same journey against a deployed site instead of
+the local Vite server; the Playwright config then uses that URL as `baseURL`
+and does not start `webServer`:
+
+```sh
+WEB=$(terraform -chdir=infra/envs/dev output -raw web_url)
+E2E_BASE_URL="$WEB" npm run e2e
+```
+
+The deployed run needs the same seeded user and does not read
+`apps/web/.env.local` for app config (the build already baked it in); set
+`E2E_USER_POOL_ID` for Cognito cleanup.
+
 What it covers: the logged-out marketing page and protected-route redirect,
 login plus navbar credits from `GET /me`, PNG upload and gallery thumbnail,
 add/remove/clear tokens, print (with `window.print` stubbed via
@@ -299,6 +312,56 @@ aws dynamodb get-item --table-name "$TABLE" \
 - `failed` → fulfillment-failed message with the `orders@example.com` contact.
 - `403`/`404`/missing `session_id` → unknown order (no payment data).
 - Unexpected network/API error → retryable error message.
+
+## CloudFront hosting (Phase 5)
+
+One CloudFront default URL serves the SPA and the same-origin `/api/*` proxy
+(PLAN 7.4, ADR-0003). No custom domain in v1.
+
+### Deploy the SPA
+
+`scripts/deploy-web.sh` reads the `infra/envs/dev` outputs, builds
+`@aws-token-designer/web` with `VITE_AWS_REGION` / `VITE_COGNITO_*` (no API
+URL — the SPA calls relative `/api/...`), syncs `apps/web/dist` to the web
+bucket, and invalidates only `/index.html`:
+
+```sh
+./scripts/deploy-web.sh
+# deploy-web: building SPA for https://dxxxx.cloudfront.net
+# deploy-web: deployed https://dxxxx.cloudfront.net
+```
+
+It fails fast when AWS credentials or the Terraform outputs are missing. Cache
+policy: content-hashed assets are `public,max-age=31536000,immutable`;
+`index.html` is `no-cache`. `aws s3 sync --delete` removes stale bundles from
+previous deploys.
+
+### Verify the default URL
+
+```sh
+WEB=$(terraform -chdir=infra/envs/dev output -raw web_url)
+DIST=$(terraform -chdir=infra/envs/dev output -raw cloudfront_distribution_id)
+
+# 200 + HSTS / nosniff / frame deny / referrer policy / CSP
+curl -sI "$WEB/" | head -20
+
+# Same-origin API: 200 and no CORS headers (the browser never crosses origins)
+curl -sI "$WEB/api/health"
+
+# SPA fallback: extensionless deep links return index.html 200, with the query
+curl -s -o /dev/null -w "%{http_code}\n" "$WEB/return?session_id=cs_test_x"
+curl -s -o /dev/null -w "%{http_code}\n" "$WEB/login"
+
+# API semantics are NOT rewritten: unauthenticated /me is still 401 JSON
+curl -s -o /dev/null -w "%{http_code}\n" "$WEB/api/me"
+
+# Invalidation check (only /index.html should be invalidated per deploy)
+aws cloudfront get-invalidation --distribution-id "$DIST" --id <invalidation-id>
+```
+
+SPA deep links use a CloudFront Function on the default behavior, not
+`custom_error_response`; that deliberate deviation keeps API 401/403/404
+statuses intact. See "Phase 5 additions" in docs/TERRAFORM.md.
 
 ## Deployed dev status
 

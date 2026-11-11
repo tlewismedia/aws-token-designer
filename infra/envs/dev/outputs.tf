@@ -38,6 +38,26 @@ output "api_url" {
   value       = module.api.api_url
 }
 
+output "web_url" {
+  description = "Public CloudFront URL for the SPA (same-origin /api/* proxy)."
+  value       = "https://${module.cloudfront.distribution_domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID (deploy-web invalidation target)."
+  value       = module.cloudfront.distribution_id
+}
+
+output "cloudfront_domain_name" {
+  description = "Default CloudFront domain name (no scheme)."
+  value       = module.cloudfront.distribution_domain_name
+}
+
+output "aws_region" {
+  description = "AWS region of the deployment (VITE_AWS_REGION for scripts/deploy-web.sh)."
+  value       = var.region
+}
+
 output "api_lambda_name" {
   description = "Name of the api Lambda function."
   value       = module.lambda.lambda_name

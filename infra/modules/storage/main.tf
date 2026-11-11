@@ -64,24 +64,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "media" {
   }
 }
 
-# TODO (Phase 5): attach the CloudFront OAC bucket policy to the web bucket
-# once the distribution exists. Use var.cloudfront_distribution_arn in the
-# policy condition then. Deliberately no aws_s3_bucket_policy here yet.
-
-# Presigned PUT from the browser: CORS answers the preflight.
-resource "aws_s3_bucket_cors_configuration" "media" {
-  bucket = aws_s3_bucket.media.id
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["PUT"]
-    # CloudFront domain placeholder: add the distribution domain to
-    # var.media_allowed_origins in Phase 5.
-    allowed_origins = var.media_allowed_origins
-    expose_headers  = ["ETag"]
-    max_age_seconds = 3000
-  }
-}
+# Phase 5 moved the web-bucket OAC policy and the media bucket's presigned-PUT
+# CORS rule into infra/modules/cloudfront: both need the distribution ARN/domain.
+# There is deliberately no aws_s3_bucket_policy or bucket CORS resource here.
 
 resource "aws_s3_bucket_lifecycle_configuration" "web" {
   bucket = aws_s3_bucket.web.id

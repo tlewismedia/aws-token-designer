@@ -23,7 +23,9 @@ One AWS object managed by Terraform. Examples in this stack:
 | Cognito user pool + app client | `infra/modules/cognito/main.tf` (`aws_cognito_user_pool`, `aws_cognito_user_pool_client`) |
 | Pre-sign-up auto-confirm Lambda + role + permission | `infra/modules/cognito/main.tf` (`aws_lambda_function`, `aws_iam_role`, `aws_lambda_permission`) |
 | DynamoDB single table | `infra/modules/dynamodb/main.tf` (`aws_dynamodb_table`) |
-| Web + media buckets, encryption, CORS, lifecycle | `infra/modules/storage/main.tf` (`aws_s3_bucket`, `..._cors_configuration`, `..._lifecycle_configuration`, ...) |
+| Web + media buckets, encryption, lifecycle | `infra/modules/storage/main.tf` (`aws_s3_bucket`, `..._lifecycle_configuration`, ...) |
+| CloudFront distribution, OAC, SPA rewrite function, security headers | `infra/modules/cloudfront/main.tf` (`aws_cloudfront_distribution`, `..._origin_access_control`, `..._function`, `..._response_headers_policy`) |
+| Media bucket CORS (presigned PUT) | `infra/modules/cloudfront/main.tf` (`aws_s3_bucket_cors_configuration`) |
 | SNS topic + email subscription | `infra/modules/monitoring/main.tf` (`aws_sns_topic`, `aws_sns_topic_subscription`) |
 | Monthly budget, anomaly monitor + subscription | `infra/modules/monitoring/main.tf` (`aws_budgets_budget`, `aws_ce_anomaly_monitor`, `aws_ce_anomaly_subscription`) |
 | State bucket (+ versioning, SSE-S3, public-access block) | `infra/bootstrap/main.tf` |
@@ -65,14 +67,16 @@ Envs compose modules; modules never hardcode the stage.
 - `infra/modules/dynamodb/` — one on-demand table, string PK/SK, TTL on
   `expiresAt`, AWS-owned encryption, PITR off (commented, demo default)
 - `infra/modules/storage/` — private web + media buckets (ownership
-  controls, public-access-blocked, SSE-S3); media CORS allows presigned PUT
-  from `var.media_allowed_origins` (localhost now, CloudFront domain in
-  Phase 5); both buckets abort incomplete multipart uploads after 1 day
+  controls, public-access-blocked, SSE-S3); both buckets abort incomplete
+  multipart uploads after 1 day. Phase 5 moved the media CORS rule and the
+  web-bucket OAC policy to the `cloudfront` module (both need the distribution)
+- `infra/modules/cloudfront/` — one default CloudFront URL for the SPA and
+  the same-origin `/api/*` proxy (see "Phase 5 additions" below)
 - `infra/modules/monitoring/` — SNS topic + email subscription
   (`var.alert_email`, placeholder `alerts@example.com`), monthly budget with
   $1/$5/$10/$25 thresholds, Cost Anomaly Detection monitor + low-threshold
   ($5 impact) subscription
-- Wiring: `infra/envs/dev/main.tf` calls all four modules with shared tags
+- Wiring: `infra/envs/dev/main.tf` calls every module with shared tags
 
 ## Plan / Apply
 
@@ -151,9 +155,8 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 ## Deferred to later phases
 
 - `infra/envs/prod/` — Phase 6
-- CloudFront resources — Phase 5
-  (the web bucket's OAC policy waits for the distribution:
-  `TODO` + `var.cloudfront_distribution_arn` in `infra/modules/storage/`)
+- Custom domain + ACM certificate + Route 53 alias — later (the distribution
+  already outputs `distribution_hosted_zone_id` for that step)
 - CloudWatch Lambda/API alarms beyond the Phase 3 AI alarms — Phase 6
 
 ## Phase 2 additions
@@ -238,7 +241,7 @@ keys stay out-of-band in SSM SecureString.
     `STRIPE_WEBHOOK_SECRET_PARAM_NAME` — SSM parameter names from
     `local.ssm_parameter_names` in `infra/envs/dev`.
   - `WEB_ORIGIN` — SPA origin for the embedded Checkout `return_url`
-    (dev: `http://localhost:5173`).
+    (dev default is empty until it is set to the CloudFront URL; see Phase 5).
   - `CREDITS_PER_PURCHASE` — server-controlled credits per purchase
     (default `10`).
 - `infra/modules/lambda/` — `api` IAM additions:
@@ -248,8 +251,81 @@ keys stay out-of-band in SSM SecureString.
   - `kms:Decrypt` on the `data.aws_kms_alias.ssm.target_key_arn` key ARN
     (KMS does not accept alias ARNs in an IAM `Resource`).
 - `infra/envs/dev/variables.tf` — `stripe_price_id` (default `""`),
-  `web_origin` (default `http://localhost:5173`), `credits_per_purchase`
+  `web_origin` (Phase 5 changed the dev default to `""`; set it to the CloudFront URL after the first apply — see the Phase 5 section), `credits_per_purchase`
   (default `10`). Pass the real test-mode price id with `-var` or a gitignored
   tfvars file; it is not a secret.
 - No new Lambda functions or resources: the existing `api` function serves the
   routes and the existing table stores payments.
+
+## Phase 5 additions (CloudFront hosting)
+
+`infra/modules/cloudfront/` serves the SPA and the API from one CloudFront
+default URL (PLAN 7.4, ADR-0003). No custom domain, ACM certificate, or Route
+53 record in v1.
+
+- **Origins**
+  - `web` — the S3 web bucket's `bucket_regional_domain_name`, authorized by
+    an Origin Access Control (OAC; SigV4, `always`).
+  - `api` — the execute-api domain from the api module's `api_domain_name`
+    output (`<id>.execute-api.<region>.amazonaws.com`), `https-only`, TLS 1.2.
+- **Behaviors**
+  - default `/*` → S3; managed `CachingOptimized`
+    (`658327ea-f89d-4fab-a63d-7e88639e58f6`), compress, redirect-to-https.
+  - `/api/*` → execute-api; managed `CachingDisabled`
+    (`4135ea2d-6df8-44a3-9df3-4b5a84be39ad`) and
+    `AllViewerExceptHostHeader` (`b689b0a8-53d0-40ab-baf2-68738e2966ac`), so
+    Authorization/body/query strings reach the API but the viewer's `Host` does
+    not replace execute-api's own host. All methods GET/HEAD/OPTIONS/PUT/POST/
+    PATCH/DELETE. API responses are never cached.
+  - `HEAD /health` was added to the api module: HTTP APIs have no implicit
+    HEAD→GET route, and the verification/monitoring probe is `curl -I`
+    (Hono serves HEAD as GET once the request reaches Lambda).
+- **SPA deep links — deviation from the PLAN wording.** PLAN 7.4 and the issue
+  text mention `403/404 -> /index.html`; CloudFront `custom_error_response` is
+  distribution-wide, so it would also rewrite real API statuses (cross-user
+  `403`, missing `404`) into `index.html` 200. The module therefore leaves
+  `custom_error_response` **unset** and attaches a CloudFront Function
+  (viewer-request, default behavior only) that rewrites extensionless paths to
+  `/index.html`, preserving the query string
+  (e.g. `/return?session_id=...`). Asset paths contain a dot and are untouched;
+  `/api/*` never reaches the function because it is a separate behavior.
+- **Security headers** — `aws_cloudfront_response_headers_policy` on both
+  behaviors: HSTS (1 year, includeSubdomains), `X-Content-Type-Options:
+  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+  strict-origin-when-cross-origin`, and a CSP with `default-src 'self'`,
+  same-origin scripts, inline styles (React style attributes), Cognito +
+  `*.amazonaws.com` (presigned media) + `api.stripe.com` in `connect-src`,
+  `frame-src https://js.stripe.com`, `frame-ancestors 'none'`,
+  `base-uri 'self'`, `form-action 'self'`.
+- **Price class** `PriceClass_100` (cheapest edges), IPv6 enabled, and
+  `wait_for_deployment` (`var.wait_for_deployment`, default `true`).
+- **OAC bucket policy** — `aws_s3_bucket_policy` on the web bucket:
+  service principal `cloudfront.amazonaws.com`, `s3:GetObject` on
+  `${web_bucket_arn}/*`, `StringEquals AWS:SourceArn = <distribution arn>`.
+- **Media CORS move** — `aws_s3_bucket_cors_configuration.media` moved from
+  `storage` to `cloudfront` because its allowed origins now include
+  `https://<distribution domain>`. Allowed origins are
+  `var.media_allowed_origins` (default `http://localhost:5173`) plus the
+  distribution origin; PUT, `*` headers, `ETag` exposed, 3000 s max age. Do not
+  add a second CORS resource in `storage` — S3 has one CORS singleton per
+  bucket. The resource is moved in place via the root-level `moved` block in
+  `infra/envs/dev/main.tf`, so the plan shows an update, not a delete/create.
+- **Outputs** — `distribution_id`, `distribution_domain_name`,
+  `distribution_arn`, `distribution_hosted_zone_id`; dev adds `web_url`,
+  `cloudfront_distribution_id`, `cloudfront_domain_name`, `aws_region`.
+- **`WEB_ORIGIN` cycle** — the Stripe return URL stays an input
+  (`var.web_origin`, default `""`) instead of referencing the distribution,
+  which would create distribution → api → lambda → distribution. After the
+  first apply, set it once:
+
+  ```sh
+  terraform -chdir=infra/envs/dev apply \
+    -var="web_origin=$(terraform -chdir=infra/envs/dev output -raw web_url)"
+  ```
+
+  Stripe is disabled in dev, so this is optional there.
+- **Deploy** — `scripts/deploy-web.sh` builds the SPA with the public
+  Cognito/region outputs, syncs `apps/web/dist`, and invalidates only
+  `/index.html`. The Playwright smoke can target the deployed URL with
+  `E2E_BASE_URL="$(terraform -chdir=infra/envs/dev output -raw web_url)" npm run e2e`
+  (no local Vite server is started). See docs/TESTING.md.
