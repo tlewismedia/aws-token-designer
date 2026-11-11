@@ -38,8 +38,17 @@ export async function parseJsonBody<S extends ZodType>(
   return parsed.data as z.infer<S>
 }
 
-export function createApp(): App {
-  const app = new Hono<AppEnv>()
+export interface AppOptions {
+  /** Mount every route under this prefix (e.g. `/api`, the API Gateway stage). */
+  basePath?: string
+}
+
+export function createApp(options: AppOptions = {}): App {
+  // `basePath` returns a new router, so it must be applied at construction
+  // (the chained form below) before any route or middleware is registered.
+  const app = options.basePath
+    ? new Hono<AppEnv>().basePath(options.basePath)
+    : new Hono<AppEnv>()
 
   // Request-id middleware: every response and error carries an id that maps
   // back to the API Gateway request id (PLAN 8.4).

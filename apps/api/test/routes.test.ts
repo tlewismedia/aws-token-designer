@@ -40,6 +40,7 @@ const s3Mock = vi.hoisted(() => ({
 vi.mock('../src/lib/s3.js', () => s3Mock)
 
 import { createApp } from '../src/app.js'
+import { handler } from '../src/index.js'
 import { forbidden, notFound } from '../src/lib/errors.js'
 import type { ImageWithUrls, Sheet } from '@aws-token-designer/shared'
 import sharp from 'sharp'
@@ -92,6 +93,66 @@ describe('auth middleware', () => {
     expect(res.status).toBe(401)
     const body = await json(res)
     expect(envelope(body).code).toBe('UNAUTHENTICATED')
+  })
+})
+
+// API Gateway HTTP API v2 includes the stage name in `rawPath`; this exercises
+// the real @hono/aws-lambda adapter, which the direct app.request() tests above
+// do not. Guards against routes being unreachable at the deployed `/api` path.
+function apiGatewayEvent(path: string, method = 'GET', sub?: string) {
+  return {
+    version: '2.0',
+    routeKey: `${method} ${path.replace('/api', '')}`,
+    rawPath: path,
+    rawQueryString: '',
+    headers: { host: 'example.execute-api.us-west-2.amazonaws.com' },
+    requestContext: {
+      accountId: '123456789012',
+      apiId: 'abc123',
+      domainName: 'example.execute-api.us-west-2.amazonaws.com',
+      http: {
+        method,
+        path,
+        protocol: 'HTTP/1.1',
+        sourceIp: '127.0.0.1',
+        userAgent: 'vitest',
+      },
+      requestId: 'req-handler',
+      routeKey: `${method} ${path.replace('/api', '')}`,
+      stage: 'api',
+      time: '2026-01-01T00:00:00Z',
+      timeEpoch: 0,
+      ...(sub ? { authorizer: { jwt: { claims: { sub, email: `${sub}@example.com` } } } } : {}),
+    },
+    isBase64Encoded: false,
+  }
+}
+
+describe('Lambda handler (API Gateway v2 stage prefix)', () => {
+  it('serves GET /api/health without authentication', async () => {
+    const res = (await handler(
+      apiGatewayEvent('/api/health') as never,
+      {} as never,
+    )) as { statusCode: number; body: string }
+    expect(res.statusCode).toBe(200)
+    expect(JSON.parse(res.body)).toEqual({ status: 'ok' })
+  })
+
+  it('routes GET /api/me with JWT claims from the event', async () => {
+    vi.clearAllMocks()
+    repoStub.getProfile.mockResolvedValue({
+      sub: 'user-1',
+      email: 'user-1@example.com',
+      credits: 10,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    })
+    repoStub.listSheets.mockResolvedValue([])
+    const res = (await handler(
+      apiGatewayEvent('/api/me', 'GET', 'user-1') as never,
+      {} as never,
+    )) as { statusCode: number; body: string }
+    expect(res.statusCode).toBe(200)
+    expect(JSON.parse(res.body).profile.sub).toBe('user-1')
   })
 })
 
