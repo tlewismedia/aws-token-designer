@@ -183,6 +183,21 @@ aws ssm put-parameter --name "/token-designer/dev/generation-enabled" \
 
 Lambda env vars will reference these parameter names (Phases 2–3), not values.
 
+## Alert email
+
+`alert_email` defaults to the placeholder `alerts@example.com` so the repo stays
+public-safe. **Pass the real address on every apply** (via `-var` or a
+gitignored tfvars file):
+
+```sh
+terraform -chdir=infra/envs/dev apply -var="alert_email=<private-address>"
+```
+
+If you apply without it after a deployment that used a real address, Terraform
+plans an SNS subscription replacement (destroy + create), which drops the
+confirmed subscription until the new address confirms. Check the plan for
+`aws_sns_topic_subscription.email must be replaced`.
+
 ## Tags
 
 Every resource carries `Project=token-designer`, `Stage=<env>`,
