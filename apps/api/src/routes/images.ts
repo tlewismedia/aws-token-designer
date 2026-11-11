@@ -6,10 +6,11 @@ import {
   type Image,
   type ImageWithUrls,
 } from '@aws-token-designer/shared'
+import { MAX_UPLOAD_BYTES } from '@aws-token-designer/shared'
 import type { App } from '../app.js'
 import { parseJsonBody } from '../app.js'
 import { config } from '../env.js'
-import { badRequest, conflict, internalError } from '../lib/errors.js'
+import { badRequest, conflict, internalError, payloadTooLarge } from '../lib/errors.js'
 import { getRepo, imageFromItem } from '../lib/db.js'
 import { processImage, validateUploadedBuffer } from '../lib/process-image.js'
 import {
@@ -61,9 +62,15 @@ export function registerImagesRoutes(app: App): void {
     return c.json({ images: withUrls })
   })
 
-  // Create a pending image record + presigned PUT (FR-5).
+  // Create a pending image record + presigned PUT (FR-5). The presigned URL
+  // is constrained to the declared content type and exact byte length
+  // (Content-Length is signed), so an oversized upload fails at S3, not in
+  // the Lambda (PLAN 6.6).
   app.post('/images/upload-url', async (c) => {
     const body = await parseJsonBody(c, uploadUrlRequestSchema)
+    if (body.size > MAX_UPLOAD_BYTES) {
+      throw payloadTooLarge()
+    }
     const cfg = config()
     const repo = getRepo()
     const sub = c.get('sub')
@@ -84,7 +91,7 @@ export function registerImagesRoutes(app: App): void {
       createdAt: now,
     }
     await repo.putImage(image)
-    const uploadUrl = await createPresignedPut(cfg, key, body.contentType)
+    const uploadUrl = await createPresignedPut(cfg, key, body.contentType, body.size)
     return c.json({ imageId, uploadUrl, key }, 201)
   })
 

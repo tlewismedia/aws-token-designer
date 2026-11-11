@@ -44,7 +44,7 @@ export function useUploadImage() {
       }
       const presign = await apiFetch<UploadUrlResponse>('/images/upload-url', {
         method: 'POST',
-        body: { name, description, style, contentType: file.type },
+        body: { name, description, style, contentType: file.type, size: file.size },
       })
       // Browser uploads straight to S3 (PLAN 6.6).
       const put = await fetch(presign.uploadUrl, {

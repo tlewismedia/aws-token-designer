@@ -125,13 +125,37 @@ describe('POST /images/upload-url', () => {
     const app = createApp()
     const res = await authedRequest(app, '/images/upload-url', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Goblin', contentType: 'image/png' }),
+      body: JSON.stringify({ name: 'Goblin', contentType: 'image/png', size: 2048 }),
     })
     expect(res.status).toBe(201)
     const body = await json<{ imageId: string; uploadUrl: string; key: string }>(res)
     expect(body.imageId).toBeTruthy()
     expect(body.uploadUrl).toBe('https://s3-presigned-put')
     expect(repoStub.putImage).toHaveBeenCalledTimes(1)
+    // Presign is constrained to the declared content type + exact size.
+    expect(s3Mock.createPresignedPut).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaBucket: 'test-bucket' }),
+      expect.stringMatching(/^users\/user-1\/images\/.+\/upload\.png$/),
+      'image/png',
+      2048,
+    )
+  })
+
+  it('rejects sizes over the 10 MB cap with 413 before presigning', async () => {
+    vi.clearAllMocks()
+    const app = createApp()
+    const res = await authedRequest(app, '/images/upload-url', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Too Big',
+        contentType: 'image/png',
+        size: 10 * 1024 * 1024 + 1,
+      }),
+    })
+    expect(res.status).toBe(413)
+    expect(envelope(await json(res)).code).toBe('PAYLOAD_TOO_LARGE')
+    expect(s3Mock.createPresignedPut).not.toHaveBeenCalled()
+    expect(repoStub.putImage).not.toHaveBeenCalled()
   })
 
   it('rejects invalid bodies with 400 + envelope', async () => {

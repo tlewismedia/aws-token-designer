@@ -15,6 +15,7 @@ describe('uploadUrlRequestSchema', () => {
       description: 'A big goblin',
       style: 'anime',
       contentType: 'image/png',
+      size: 64000,
     })
     expect(parsed.name).toBe('Goblin Chief')
   })
@@ -22,6 +23,24 @@ describe('uploadUrlRequestSchema', () => {
   it('rejects unsupported content types', () => {
     expect(() =>
       uploadUrlRequestSchema.parse({ name: 'x', contentType: 'application/pdf' }),
+    ).toThrow()
+  })
+
+  it('requires a positive integer size (presign Content-Length constraint)', () => {
+    const parsed = uploadUrlRequestSchema.parse({
+      name: 'x',
+      contentType: 'image/png',
+      size: 12345,
+    })
+    expect(parsed.size).toBe(12345)
+    expect(() =>
+      uploadUrlRequestSchema.parse({ name: 'x', contentType: 'image/png', size: 0 }),
+    ).toThrow()
+    expect(() =>
+      uploadUrlRequestSchema.parse({ name: 'x', contentType: 'image/png', size: 10.5 }),
+    ).toThrow()
+    expect(() =>
+      uploadUrlRequestSchema.parse({ name: 'x', contentType: 'image/png', size: -1 }),
     ).toThrow()
   })
 

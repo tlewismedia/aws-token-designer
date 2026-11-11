@@ -15,13 +15,19 @@ export function resetS3ClientForTests(): void {
   client = null
 }
 
-/** Presigned PUT constrained to a content type (PLAN 6.6). */
+/** Presigned PUT constrained to a content type and exact content length. */
 export async function createPresignedPut(
   cfg: ApiConfig,
   key: string,
   contentType: string,
+  size: number,
 ): Promise<string> {
-  const cmd = new PutObjectCommand({ Bucket: cfg.mediaBucket, Key: key, ContentType: contentType })
+  const cmd = new PutObjectCommand({
+    Bucket: cfg.mediaBucket,
+    Key: key,
+    ContentType: contentType,
+    ContentLength: size, // signed → the URL only accepts an upload of exactly this length
+  })
   return getSignedUrl(s3(), cmd, { expiresIn: cfg.uploadUrlTtl })
 }
 

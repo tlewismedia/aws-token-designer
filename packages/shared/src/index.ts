@@ -89,6 +89,12 @@ export const uploadUrlRequestSchema = z.object({
   description: z.string().trim().max(500).optional(),
   style: z.enum(IMAGE_STYLES).optional(),
   contentType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  /**
+   * Exact upload size in bytes. The presigned PUT signs Content-Length, so
+   * the upload must match exactly (PLAN 6.6: content-type + size
+   * constraints). Sizes over the cap are rejected with 413 by the route.
+   */
+  size: z.number().int().positive(),
 })
 export type UploadUrlRequest = z.infer<typeof uploadUrlRequestSchema>
 
