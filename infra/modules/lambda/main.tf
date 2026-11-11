@@ -7,8 +7,12 @@
 # without referencing the function resource (which depends on the log group
 # below — referencing aws_lambda_function here would create a graph cycle).
 locals {
-  api_function_name = "${var.project}-${var.stage}-api"
+  api_function_name    = "${var.project}-${var.stage}-api"
+  worker_function_name = "${var.project}-${var.stage}-generate-worker"
 }
+
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
 data "archive_file" "api" {
   type        = "zip"
@@ -17,6 +21,16 @@ data "archive_file" "api" {
   source {
     content  = file("${var.source_dist}/index.mjs")
     filename = "index.mjs"
+  }
+}
+
+data "archive_file" "worker" {
+  type        = "zip"
+  output_path = "${path.module}/.terraform/worker.zip"
+
+  source {
+    content  = file("${var.source_dist}/worker.mjs")
+    filename = "worker.mjs"
   }
 }
 
@@ -71,6 +85,75 @@ resource "aws_iam_role_policy" "api" {
         Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
         Resource = ["${var.media_bucket_arn}/*"]
       },
+      {
+        # Async generation (POST /images/generate) — worker ARN only.
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = [aws_lambda_function.worker.arn]
+      },
+    ]
+  })
+}
+
+# generateWorker: least privilege for the generation pipeline only — the
+# single table, media bucket writes/reads, the two SSM parameters, and logs.
+resource "aws_iam_role" "worker" {
+  name = "${var.project}-${var.stage}-generate-worker"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy" "worker" {
+  name = "${var.project}-${var.stage}-generate-worker-policy"
+  role = aws_iam_role.worker.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = ["arn:aws:logs:*:*:*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"]
+        Resource = [var.table_arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Query"]
+        Resource = ["${var.table_arn}/index/byId"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = ["${var.media_bucket_arn}/*"]
+      },
+      {
+        # Parameter names are NAMES, not values (docs/TERRAFORM.md).
+        Effect = "Allow"
+        Action = ["ssm:GetParameter"]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.stability_param_name}",
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.kill_switch_param_name}",
+        ]
+      },
+      {
+        # SecureString decryption with the AWS-managed aws/ssm key.
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = ["arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"]
+      },
     ]
   })
 }
@@ -96,10 +179,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TABLE_NAME   = var.table_name
-      MEDIA_BUCKET = var.media_bucket_name
-      NODE_OPTIONS = "--enable-source-maps"
-      PRESIGN_TTL  = "3600"
+      TABLE_NAME           = var.table_name
+      MEDIA_BUCKET         = var.media_bucket_name
+      WORKER_FUNCTION_NAME = aws_lambda_function.worker.function_name
+      NODE_OPTIONS         = "--enable-source-maps"
+      PRESIGN_TTL          = "3600"
     }
   }
 
@@ -112,6 +196,47 @@ resource "aws_lambda_function" "api" {
 
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${local.api_function_name}"
+  retention_in_days = 7 # dev; prod gets 30 days in Phase 6
+
+  tags = var.tags
+}
+
+# generateWorker (PLAN 6.7): async Stability call + sharp thumbnail + S3/DDB
+# writes. 120s absorbs provider latency spikes; no reserved concurrency (the
+# dev account limit is 10 — see docs/PLAN.md §7.6 / ADR-0008 deviation).
+resource "aws_lambda_function" "worker" {
+  function_name = local.worker_function_name
+  description   = "Async image generation worker (Stability AI + sharp)."
+  runtime       = "nodejs22.x"
+  handler       = "worker.handler"
+  architectures = ["arm64"]
+  memory_size   = 1024
+  timeout       = 120
+  role          = aws_iam_role.worker.arn
+
+  filename         = data.archive_file.worker.output_path
+  source_code_hash = data.archive_file.worker.output_base64sha256
+
+  layers = [aws_lambda_layer_version.sharp.arn]
+
+  depends_on = [aws_cloudwatch_log_group.worker]
+
+  environment {
+    variables = {
+      TABLE_NAME             = var.table_name
+      MEDIA_BUCKET           = var.media_bucket_name
+      STABILITY_PARAM_NAME   = var.stability_param_name
+      KILL_SWITCH_PARAM_NAME = var.kill_switch_param_name
+      STAGE                  = var.stage
+      NODE_OPTIONS           = "--enable-source-maps"
+    }
+  }
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "worker" {
+  name              = "/aws/lambda/${local.worker_function_name}"
   retention_in_days = 7 # dev; prod gets 30 days in Phase 6
 
   tags = var.tags

@@ -47,3 +47,13 @@ output "sharp_layer_arn" {
   description = "ARN of the sharp Lambda layer."
   value       = module.lambda.sharp_layer_arn
 }
+
+output "generation_worker_name" {
+  description = "Name of the generateWorker Lambda function."
+  value       = module.lambda.worker_lambda_name
+}
+
+output "generation_worker_role_arn" {
+  description = "Execution role ARN of the generateWorker Lambda."
+  value       = module.lambda.worker_role_arn
+}
