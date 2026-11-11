@@ -132,6 +132,12 @@ npm test --workspace @aws-token-designer/shared # generate/job schemas
 Live `dev` checks (replace `$API` / `$TOKEN` as above). Generation is async:
 `POST` returns `202 { jobId }`, then poll `GET /jobs/{jobId}` every 2s.
 
+Polling is bounded: the client stops after ~150 s (75 attempts at 2 s) even if
+the job never reaches a terminal state, and shows “still working — check the
+gallery” instead of polling forever. Server-side, a `processing` job whose
+`processingAt` lease is older than 5 minutes can be reclaimed by a Lambda
+async retry, so a crashed worker cannot leave a job stuck forever.
+
 ```sh
 # 1. Submit a generation.
 curl -i -X POST -H "Authorization: Bearer $TOKEN" \

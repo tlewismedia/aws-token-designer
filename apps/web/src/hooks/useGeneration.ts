@@ -1,14 +1,14 @@
 // Generation hooks (FR-4, PLAN 6.7/6.9): submit a prompt, then poll the job
 // every 2s until it is terminal. On success the gallery is invalidated.
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   GenerateImageRequest,
   GenerateImageResponse,
   JobResponse,
 } from '@aws-token-designer/shared'
-import { JOB_POLL_INTERVAL_MS } from '@aws-token-designer/shared'
+import { JOB_POLL_INTERVAL_MS, JOB_POLL_MAX_ATTEMPTS } from '@aws-token-designer/shared'
 import { useAuth } from '../contexts/auth-context'
 import { apiFetch } from '../lib/api'
 import { queryKeys } from '../lib/query-client'
@@ -25,34 +25,61 @@ export function useGenerateImage() {
 
 /**
  * Poll a generation job while it is pending/processing. TanStack Query stops
- * the interval automatically when `refetchInterval` returns false (terminal
- * status), and the gallery is invalidated once on `succeeded`.
+ * the interval when `refetchInterval` returns false: terminal status, or the
+ * bounded attempt cap (~150 s at 2 s cadence). `pollTimedOut` lets the UI say
+ * "still working — check the gallery" instead of polling forever.
+ * The gallery is invalidated once on `succeeded`.
  */
 export function useGenerationJob(jobId: string | null) {
   const { user } = useAuth()
   const sub = user?.sub ?? ''
   const queryClient = useQueryClient()
+  // Count poll attempts per job so the client can stop after a bounded window
+  // (~75 polls ≈ 150 s at the 2 s cadence) even if the server never reaches a
+  // terminal state. The ref is read by the interval callback (no stale
+  // closure); the state copy drives the UI.
+  const [pollState, setPollState] = useState<{ jobId: string | null; count: number }>({
+    jobId: null,
+    count: 0,
+  })
+  const pollJobIdRef = useRef<string | null>(null)
+  const pollCountRef = useRef(0)
 
   const query = useQuery({
     queryKey: queryKeys.job(sub, jobId ?? ''),
     enabled: Boolean(user && jobId),
-    queryFn: () => apiFetch<JobResponse>(`/jobs/${jobId}`),
+    queryFn: () => {
+      if (pollJobIdRef.current !== jobId) {
+        pollJobIdRef.current = jobId
+        pollCountRef.current = 0
+      }
+      pollCountRef.current += 1
+      setPollState({ jobId, count: pollCountRef.current })
+      return apiFetch<JobResponse>(`/jobs/${jobId}`)
+    },
     refetchInterval: (current) => {
       const status = current.state.data?.job.status
-      return status === 'pending' || status === 'processing'
-        ? JOB_POLL_INTERVAL_MS
-        : false
+      if (status !== 'pending' && status !== 'processing') return false
+      if (pollCountRef.current >= JOB_POLL_MAX_ATTEMPTS) return false
+      return JOB_POLL_INTERVAL_MS
     },
   })
 
   const status = query.data?.job.status
+  const pollTimedOut =
+    Boolean(jobId) &&
+    status !== 'succeeded' &&
+    status !== 'failed' &&
+    pollState.jobId === jobId &&
+    pollState.count >= JOB_POLL_MAX_ATTEMPTS
+
   useEffect(() => {
     if (status === 'succeeded') {
       void queryClient.invalidateQueries({ queryKey: queryKeys.images(sub) })
     }
   }, [status, queryClient, sub])
 
-  return query
+  return { ...query, pollTimedOut }
 }
 
 /** User-facing text for the safe error codes the worker stores on a job. */

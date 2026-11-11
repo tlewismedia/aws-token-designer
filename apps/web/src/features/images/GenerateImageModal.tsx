@@ -32,6 +32,7 @@ export default function GenerateImageModal({
   const succeeded = jobStatus === 'succeeded'
   const failedCode = jobStatus === 'failed' ? job.data?.job.error : undefined
   const pollingError = job.isError ? job.error.message : ''
+  const pollTimedOut = job.pollTimedOut
 
   /** Reset the flow and close (backdrop, Escape, ×, or Done). */
   const handleClose = () => {
@@ -70,6 +71,9 @@ export default function GenerateImageModal({
   } else if (pollingError) {
     statusMessage = pollingError
     statusIsError = true
+  } else if (pollTimedOut) {
+    statusMessage =
+      'Still working — check the gallery in a moment. You can close this dialog.'
   } else if (isWorking) {
     statusMessage = 'Generating your image… this usually takes 10–30 seconds.'
   }
@@ -127,7 +131,7 @@ export default function GenerateImageModal({
             className="btn btn-primary"
             disabled={!prompt.trim() || isWorking}
           >
-            {isWorking ? 'Generating…' : 'Generate'}
+            {pollTimedOut ? 'Still working…' : isWorking ? 'Generating…' : 'Generate'}
           </button>
         )}
         <p className="form-note">Free during the demo — limited to 20 generations per day.</p>
