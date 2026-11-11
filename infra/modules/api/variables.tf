@@ -66,6 +66,11 @@ output "api_id" {
   value       = aws_apigatewayv2_api.main.id
 }
 
+output "stage_name" {
+  description = "HTTP API stage name (CloudWatch AWS/ApiGateway Stage dimension; literal \"api\")."
+  value       = aws_apigatewayv2_stage.api.name
+}
+
 output "execution_arn" {
   description = "Execution ARN of the HTTP API."
   value       = aws_apigatewayv2_api.main.execution_arn

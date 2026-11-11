@@ -16,7 +16,7 @@ variable "tags" {
 }
 
 variable "prevent_destroy" {
-  description = "Protect the web and media buckets from destruction. NOTE: Terraform lifecycle.prevent_destroy only accepts literal values, so the buckets are protected unconditionally in main.tf; this input documents the prod intent (true) vs dev (false) and keeps the module API aligned with dynamodb/cognito. Dev teardown needs a temporary edit — see docs/TERRAFORM.md."
+  description = "Protect the media bucket from deletion. Prod passes true: a bucket policy denies s3:DeleteBucket (S3 has no native deletion protection and Terraform lifecycle only accepts literals). Dev leaves false so the stack can be torn down. The web bucket is protected by the matching statement added by the cloudfront module."
   type        = bool
   default     = false
 }

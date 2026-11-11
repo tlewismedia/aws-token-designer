@@ -3,6 +3,11 @@ output "alerts_topic_arn" {
   value       = aws_sns_topic.alerts.arn
 }
 
+output "alerts_topic_policy_json" {
+  description = "Rendered SNS topic policy (owner + CloudWatch + Budgets publish)."
+  value       = data.aws_iam_policy_document.alerts_topic.json
+}
+
 output "budget_name" {
   description = "Monthly cost budget name."
   value       = aws_budgets_budget.monthly.name
@@ -16,7 +21,9 @@ output "alarm_names" {
     aws_cloudwatch_metric_alarm.worker_lambda_errors.alarm_name,
     aws_cloudwatch_metric_alarm.api_lambda_throttles.alarm_name,
     aws_cloudwatch_metric_alarm.worker_lambda_throttles.alarm_name,
-    aws_cloudwatch_metric_alarm.dynamodb_throttled_requests.alarm_name,
+    aws_cloudwatch_metric_alarm.dynamodb_read_throttle_events.alarm_name,
+    aws_cloudwatch_metric_alarm.dynamodb_write_throttle_events.alarm_name,
+    aws_cloudwatch_metric_alarm.generation_failures.alarm_name,
     aws_cloudwatch_metric_alarm.generation_count_daily.alarm_name,
     aws_cloudwatch_metric_alarm.estimated_ai_cost_daily.alarm_name,
   ]

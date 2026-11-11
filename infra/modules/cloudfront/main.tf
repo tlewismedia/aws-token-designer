@@ -205,6 +205,27 @@ data "aws_iam_policy_document" "web_oac" {
       values   = [aws_cloudfront_distribution.main.arn]
     }
   }
+
+  # Prod-only deletion protection (S3 has no native flag and Terraform lifecycle
+  # only accepts literals). An explicit Deny wins over IAM Allow, so
+  # `terraform destroy` fails at DeleteBucket. The media bucket's statement
+  # lives in the storage module's own bucket policy.
+  dynamic "statement" {
+    for_each = var.protect_from_deletion ? [1] : []
+
+    content {
+      sid    = "DenyBucketDeletion"
+      effect = "Deny"
+
+      principals {
+        type        = "AWS"
+        identifiers = ["*"]
+      }
+
+      actions   = ["s3:DeleteBucket"]
+      resources = [var.web_bucket_arn]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "web" {

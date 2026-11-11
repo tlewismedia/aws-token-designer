@@ -59,3 +59,9 @@ variable "wait_for_deployment" {
   type        = bool
   default     = true
 }
+
+variable "protect_from_deletion" {
+  description = "Add a Deny s3:DeleteBucket statement to the web-bucket policy. Prod passes true; dev leaves false so the stack can be torn down."
+  type        = bool
+  default     = false
+}

@@ -44,6 +44,9 @@ module "cognito" {
 
   # Stateful: prod refuses to destroy the user pool (PLAN 7.1).
   prevent_destroy = true
+
+  # PLAN 7.6: 30-day pre-sign-up log retention in prod.
+  log_retention_days = 30
 }
 
 module "dynamodb" {
@@ -77,8 +80,10 @@ module "monitoring" {
   tags        = local.tags
 
   # Phase 6 platform alarms (API 5xx, Lambda errors/throttles, DynamoDB
-  # throttles). Dimensions come from the deployed resources, not hardcoded.
+  # throttles, handled generation failures). Dimensions come from the deployed
+  # resources, not hardcoded; the API Gateway stage is literally "api".
   api_id             = module.api.api_id
+  api_stage_name     = module.api.stage_name
   api_lambda_name    = module.lambda.lambda_name
   worker_lambda_name = module.lambda.worker_lambda_name
   table_name         = module.dynamodb.table_name
@@ -164,4 +169,8 @@ module "cloudfront" {
   media_allowed_origins = var.media_allowed_origins
 
   api_domain_name = module.api.api_domain_name
+
+  # Prod-only S3 delete protection for the web bucket (the media bucket gets
+  # the matching statement in the storage module). Dev leaves this false.
+  protect_from_deletion = true
 }

@@ -69,8 +69,10 @@ module "monitoring" {
   tags        = local.tags
 
   # Phase 6 platform alarms (API 5xx, Lambda errors/throttles, DynamoDB
-  # throttles). Dimensions come from the deployed resources, not hardcoded.
+  # throttles, handled generation failures). Dimensions come from the deployed
+  # resources, not hardcoded; the API Gateway stage is literally "api".
   api_id             = module.api.api_id
+  api_stage_name     = module.api.stage_name
   api_lambda_name    = module.lambda.lambda_name
   worker_lambda_name = module.lambda.worker_lambda_name
   table_name         = module.dynamodb.table_name

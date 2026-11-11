@@ -49,6 +49,12 @@ variable "api_id" {
   type        = string
 }
 
+variable "api_stage_name" {
+  description = "HTTP API stage name (AWS/ApiGateway Stage dimension). The stage is literally \"api\", not the Terraform environment name."
+  type        = string
+  default     = "api"
+}
+
 variable "api_lambda_name" {
   description = "Name of the api Lambda (AWS/Lambda FunctionName dimension)."
   type        = string
