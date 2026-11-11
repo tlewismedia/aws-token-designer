@@ -360,7 +360,14 @@ export class Repo {
     }
   }
 
-  /** Create the profile + default sheet; safe to call on every GET /me. */
+  /**
+   * Create the profile + default sheet; safe to call on every GET /me.
+   *
+   * Benign first-login race: two concurrent first requests can both see zero
+   * sheets and each put a default sheet, leaving the user with two. This is a
+   * demo-only edge (the UI always edits the newest sheet and the result is
+   * still usable); a conditional write would need a fixed sheet id.
+   */
   async ensureDefaultSheet(sub: string): Promise<void> {
     const sheets = await this.listSheets(sub)
     if (sheets.length > 0) return
