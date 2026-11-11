@@ -37,29 +37,9 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
-resource "aws_ce_anomaly_monitor" "service" {
-  name              = "${var.project}-${var.stage}-service"
-  monitor_type      = "DIMENSIONAL"
-  monitor_dimension = "SERVICE"
-}
-
-# Low threshold so demo-scale surprises still page: $5 absolute impact.
-resource "aws_ce_anomaly_subscription" "low" {
-  name      = "${var.project}-${var.stage}-low-threshold"
-  frequency = "IMMEDIATE"
-
-  monitor_arn_list = [aws_ce_anomaly_monitor.service.arn]
-
-  threshold_expression {
-    dimension {
-      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
-      values        = ["5"]
-      match_options = ["GREATER_THAN_OR_EQUAL"]
-    }
-  }
-
-  subscriber {
-    type    = "EMAIL"
-    address = var.alert_email
-  }
-}
+# Cost Anomaly Detection is intentionally NOT managed here: this AWS
+# account already runs a DIMENSIONAL services monitor
+# ("Default-Services-Monitor"), and the account quota rejects a second one
+# (verified 2026-11-11: ValidationException, limit exceeded). The monthly
+# budget above remains the primary cost guardrail. Revisit if the account
+# quota is raised or the default monitor is removed.
