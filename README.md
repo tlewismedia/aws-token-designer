@@ -38,6 +38,26 @@ A port of the Firebase Token Designer to AWS. Users generate or upload token ima
 - **IaC:** Terraform >= 1.10
 - **Region:** us-west-2
 
+## Deploy (dev)
+
+Infrastructure is Terraform in `infra/envs/dev`; the SPA is built and published
+to the CloudFront-fronted S3 bucket by a script.
+
+```sh
+# 1. Infrastructure (see docs/TERRAFORM.md for bootstrap/backend setup).
+terraform -chdir=infra/envs/dev init -backend-config=backend.hcl
+terraform -chdir=infra/envs/dev apply
+
+# 2. Build + deploy the SPA, then invalidate /index.html.
+./scripts/deploy-web.sh
+# prints https://<distribution>.cloudfront.net
+```
+
+The SPA and API share that one origin (`/api/*` is proxied by CloudFront), so
+there is no CORS configuration or build-time API URL. Verification commands and
+`E2E_BASE_URL` (run Playwright against the deployed site) are in
+[`docs/TESTING.md`](docs/TESTING.md).
+
 ## Diagrams
 
 ![AWS Token Designer deployment view](docs/diagrams/aws-deployment.svg)
