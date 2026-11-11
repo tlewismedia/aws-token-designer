@@ -72,8 +72,9 @@ Isolation and cleanup:
 - The spec clears the seeded user's sheet and deletes any `e2e-` gallery image
   left by an earlier failed run before starting, so re-runs do not need a
   pristine account. It deletes the image it created.
-- Registration users are removed in `afterAll` with
-  `aws cognito-idp admin-delete-user`.
+- Registration users are removed in `afterAll` with the `aws` CLI binary
+  (`aws cognito-idp admin-delete-user`, invoked directly, not through a shell);
+  without the CLI the user is left behind with a warning.
 - Their lazily created DynamoDB `PROFILE` / `SHEET` items remain: there is no
   account-deletion API yet. This is accepted for the dev stage; delete the
   items manually if they get noisy.

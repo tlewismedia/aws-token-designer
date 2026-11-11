@@ -152,11 +152,12 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     }
 
     const leftoverFigures = page.getByRole('figure').filter({ hasText: IMAGE_PREFIX })
-    for (let attempt = 0; attempt < 20 && (await leftoverFigures.count()) > 0; attempt += 1) {
-      const figure = leftoverFigures.first()
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const remaining = await leftoverFigures.count()
+      if (remaining === 0) break
       page.once('dialog', (dialog) => void dialog.accept())
-      await figure.getByRole('button', { name: 'Delete' }).click()
-      await expect(figure).toHaveCount(0)
+      await leftoverFigures.first().getByRole('button', { name: 'Delete' }).click()
+      await expect(leftoverFigures).toHaveCount(remaining - 1)
     }
 
     // 3. Upload a PNG; the thumbnail appears in the gallery.
@@ -181,7 +182,8 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await expect(addButton).toBeEnabled()
     const added = waitForApi(page, 'POST', '/sheets/')
     await addButton.click()
-    await added
+    const addBody = (await (await added).json()) as { sheet: { images: string[] } }
+    expect(addBody.sheet.images).toHaveLength(1)
     await expectSheetCount(page, 1)
 
     // 5. Print is gated on loaded thumbnails; the stub records the call.
@@ -193,17 +195,20 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // 6. Remove the token by clicking its ×; the count falls.
     const removed = waitForApi(page, 'DELETE', '/sheets/')
     await page.getByRole('button', { name: 'Remove token 1' }).click()
-    await removed
+    const removeBody = (await (await removed).json()) as { sheet: { images: string[] } }
+    expect(removeBody.sheet.images).toHaveLength(0)
     await expectSheetCount(page, 0)
 
     // 7. Add again, then Clear empties the sheet.
     const reAdded = waitForApi(page, 'POST', '/sheets/')
     await addButton.click()
-    await reAdded
+    const reAddBody = (await (await reAdded).json()) as { sheet: { images: string[] } }
+    expect(reAddBody.sheet.images).toHaveLength(1)
     await expectSheetCount(page, 1)
     const clearedAgain = waitForApi(page, 'PATCH', '/sheets/')
     await page.getByRole('button', { name: 'Clear', exact: true }).click()
-    await clearedAgain
+    const clearBody = (await (await clearedAgain).json()) as { sheet: { images: string[] } }
+    expect(clearBody.sheet.images).toHaveLength(0)
     await expectSheetCount(page, 0)
     await expect(page.getByRole('button', { name: 'Clear', exact: true })).toBeDisabled()
 
