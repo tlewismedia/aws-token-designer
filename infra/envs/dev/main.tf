@@ -67,6 +67,13 @@ module "monitoring" {
   stage       = var.stage
   alert_email = var.alert_email
   tags        = local.tags
+
+  # Phase 6 platform alarms (API 5xx, Lambda errors/throttles, DynamoDB
+  # throttles). Dimensions come from the deployed resources, not hardcoded.
+  api_id             = module.api.api_id
+  api_lambda_name    = module.lambda.lambda_name
+  worker_lambda_name = module.lambda.worker_lambda_name
+  table_name         = module.dynamodb.table_name
 }
 
 # Phase 2: api Lambda + HTTP API. The sharp layer and bundle must exist

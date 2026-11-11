@@ -38,3 +38,28 @@ variable "daily_ai_cost_alarm_threshold_usd" {
   type        = number
   default     = 5
 }
+
+# --- Phase 6 alarm inputs ---------------------------------------------------
+# The platform alarms below need the concrete resource names/ids because
+# CloudWatch dimensions identify individual resources. Envs pass the module
+# outputs so the alarms always track the deployed resources (no hardcoding).
+
+variable "api_id" {
+  description = "HTTP API id (AWS/ApiGateway ApiId dimension)."
+  type        = string
+}
+
+variable "api_lambda_name" {
+  description = "Name of the api Lambda (AWS/Lambda FunctionName dimension)."
+  type        = string
+}
+
+variable "worker_lambda_name" {
+  description = "Name of the generateWorker Lambda (AWS/Lambda FunctionName dimension)."
+  type        = string
+}
+
+variable "table_name" {
+  description = "DynamoDB single-table name (AWS/DynamoDB TableName dimension)."
+  type        = string
+}
