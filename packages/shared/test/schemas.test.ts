@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   addTokenRequestSchema,
   errorEnvelopeSchema,
+  generateImageRequestSchema,
   imageSchema,
+  jobSchema,
   meResponseSchema,
   sheetSchema,
   uploadUrlRequestSchema,
@@ -139,5 +141,69 @@ describe('errorEnvelopeSchema', () => {
       error: { code: 'INVALID_REQUEST', message: 'Bad input', requestId: 'r-1' },
     })
     expect(envelope.error.requestId).toBe('r-1')
+  })
+})
+
+describe('generateImageRequestSchema', () => {
+  it('accepts a prompt with optional negative prompt and style', () => {
+    const parsed = generateImageRequestSchema.parse({
+      prompt: 'A goblin chief',
+      negativePrompt: 'blurry',
+      style: 'anime',
+    })
+    expect(parsed.prompt).toBe('A goblin chief')
+    expect(parsed.style).toBe('anime')
+  })
+
+  it('trims whitespace and rejects blank prompts', () => {
+    expect(generateImageRequestSchema.parse({ prompt: '  wizard  ' }).prompt).toBe('wizard')
+    expect(() => generateImageRequestSchema.parse({ prompt: '   ' })).toThrow()
+    expect(() => generateImageRequestSchema.parse({})).toThrow()
+  })
+
+  it('rejects overlong prompts and unknown styles', () => {
+    expect(() =>
+      generateImageRequestSchema.parse({ prompt: 'a'.repeat(1001) }),
+    ).toThrow()
+    expect(() =>
+      generateImageRequestSchema.parse({ prompt: 'x', style: 'impressionist' }),
+    ).toThrow()
+  })
+})
+
+describe('jobSchema', () => {
+  it('accepts pending and terminal job records', () => {
+    const pending = jobSchema.parse({
+      id: 'job-1',
+      sub: 'user-1',
+      type: 'generation',
+      status: 'pending',
+      imageId: 'img-1',
+      prompt: 'A goblin',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: 1767225600,
+    })
+    expect(pending.status).toBe('pending')
+
+    const failed = jobSchema.parse({
+      ...pending,
+      status: 'failed',
+      error: 'GENERATION_FAILED',
+    })
+    expect(failed.error).toBe('GENERATION_FAILED')
+  })
+
+  it('rejects unknown statuses and non-generation types', () => {
+    const base = {
+      id: 'job-1',
+      sub: 'user-1',
+      type: 'generation',
+      status: 'queued',
+      imageId: 'img-1',
+      prompt: 'A goblin',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    expect(() => jobSchema.parse(base)).toThrow()
+    expect(() => jobSchema.parse({ ...base, status: 'pending', type: 'upload' })).toThrow()
   })
 })

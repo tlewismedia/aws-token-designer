@@ -161,6 +161,66 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
     })
   })
 
+  describe('generation jobs + daily cap (PLAN 6.5/6.7)', () => {
+    const makeJob = (id: string, sub = 'user-a') => ({
+      id,
+      sub,
+      type: 'generation' as const,
+      status: 'pending' as const,
+      imageId: `img-${id}`,
+      prompt: 'A goblin chief',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+    })
+
+    it('allows exactly 20 generations per UTC day', async () => {
+      const date = '2099-01-01'
+      for (let i = 0; i < 20; i++) {
+        await expect(repo.consumeDailyGeneration('cap-user', date)).resolves.toBe(true)
+      }
+      await expect(repo.consumeDailyGeneration('cap-user', date)).resolves.toBe(false)
+      // Another user has an independent allowance.
+      await expect(repo.consumeDailyGeneration('other-user', date)).resolves.toBe(true)
+      // A new day starts a fresh counter.
+      await expect(repo.consumeDailyGeneration('cap-user', '2099-01-02')).resolves.toBe(true)
+    })
+
+    it('claims a job once (pending → processing) and records success', async () => {
+      const job = makeJob('job-claim')
+      await repo.putJob(job)
+      await expect(repo.claimJobForProcessing('user-a', job.id)).resolves.toBe(true)
+      // Simulates the Lambda async retry: no second claim.
+      await expect(repo.claimJobForProcessing('user-a', job.id)).resolves.toBe(false)
+      await repo.markJobSucceeded('user-a', job.id, job.imageId)
+      const item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('succeeded')
+      expect(item?.imageId).toBe(job.imageId)
+      expect(item?.error).toBeUndefined()
+    })
+
+    it('marks a job failed with a safe error code', async () => {
+      const job = makeJob('job-fail')
+      await repo.putJob(job)
+      await repo.claimJobForProcessing('user-a', job.id)
+      await repo.markJobFailed('user-a', job.id, 'GENERATION_DISABLED')
+      const item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('failed')
+      expect(item?.error).toBe('GENERATION_DISABLED')
+    })
+
+    it('distinguishes 403 (other user) from 404 (missing) via byId', async () => {
+      const job = makeJob('job-owned')
+      await repo.putJob(job)
+      await expect(repo.getJobForSub('user-b', job.id)).rejects.toThrow(
+        /belongs to another user/,
+      )
+      await expect(repo.getJobForSub('user-a', 'job-missing')).rejects.toThrow(/Job not found/)
+      await expect(repo.getJobForSub('user-a', job.id)).resolves.toMatchObject({
+        entityId: job.id,
+      })
+    })
+  })
+
   describe('sheet tokens (FR-7–FR-10)', () => {
     let sheetId = ''
 

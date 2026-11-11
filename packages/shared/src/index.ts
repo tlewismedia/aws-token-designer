@@ -41,6 +41,35 @@ export const imageWithUrlsSchema = imageSchema.extend({
 })
 export type ImageWithUrls = z.infer<typeof imageWithUrlsSchema>
 
+// ---------------------------------------------------------------------------
+// Generation jobs (PLAN 6.5, 6.7)
+// ---------------------------------------------------------------------------
+
+export const jobStatusSchema = z.enum(['pending', 'processing', 'succeeded', 'failed'])
+export type JobStatus = z.infer<typeof jobStatusSchema>
+
+/** Terminal job states (the client stops polling on either). */
+export const TERMINAL_JOB_STATUSES = ['succeeded', 'failed'] as const
+
+export const jobSchema = z.object({
+  id: z.string().min(1),
+  sub: z.string().min(1),
+  type: z.literal('generation'),
+  status: jobStatusSchema,
+  /** Target IMAGE id chosen by the API up front (worker writes it on success). */
+  imageId: z.string().min(1),
+  prompt: z.string().min(1).max(1000),
+  negativePrompt: z.string().max(1000).optional(),
+  style: z.enum(IMAGE_STYLES).optional(),
+  /** Safe error code (never a provider message or secret). */
+  error: z.string().max(100).optional(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+  /** DynamoDB TTL, epoch seconds. */
+  expiresAt: z.number().int().optional(),
+})
+export type Job = z.infer<typeof jobSchema>
+
 export const sheetSchema = z.object({
   id: z.string().min(1),
   sub: z.string().min(1),
@@ -80,6 +109,16 @@ export const sheetsResponseSchema = z.object({
 })
 export type SheetsResponse = z.infer<typeof sheetsResponseSchema>
 
+export const generateImageResponseSchema = z.object({
+  jobId: z.string().min(1),
+})
+export type GenerateImageResponse = z.infer<typeof generateImageResponseSchema>
+
+export const jobResponseSchema = z.object({
+  job: jobSchema,
+})
+export type JobResponse = z.infer<typeof jobResponseSchema>
+
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------
@@ -116,6 +155,17 @@ export const addTokenRequestSchema = z.object({
   imageId: z.string().min(1),
 })
 export type AddTokenRequest = z.infer<typeof addTokenRequestSchema>
+
+/**
+ * POST /images/generate (FR-4). The prompt is the only required field; a
+ * negative prompt and style are optional and map to Stability parameters.
+ */
+export const generateImageRequestSchema = z.object({
+  prompt: z.string().trim().min(1).max(1000),
+  negativePrompt: z.string().trim().max(1000).optional(),
+  style: z.enum(IMAGE_STYLES).optional(),
+})
+export type GenerateImageRequest = z.infer<typeof generateImageRequestSchema>
 
 // ---------------------------------------------------------------------------
 // Error envelope (PLAN 6.4)

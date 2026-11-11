@@ -4,10 +4,12 @@
 //   Profile : PK USER#<sub>  SK PROFILE            (email, credits)
 //   Image   : PK USER#<sub>  SK IMAGE#<ulid>       (entityId = ulid, status, S3 keys)
 //   Sheet   : PK USER#<sub>  SK SHEET#<ulid>       (entityId = ulid, name, images[])
+//   Job     : PK USER#<sub>  SK JOB#<ulid>         (entityId = ulid, status, imageId, prompt)
+//   Rate    : PK USER#<sub>  SK RATE#<yyyy-mm-dd>  (count, expiresAt TTL)
 //
-// Image/sheet items carry an `entityId` attribute indexed by the `byId` GSI so
-// handlers can distinguish "does not exist" (404) from "owned by someone else"
-// (403) — see the ownership checks in the routes.
+// Image/sheet/job items carry an `entityId` attribute indexed by the `byId`
+// GSI so handlers can distinguish "does not exist" (404) from "owned by
+// someone else" (403) — see the ownership checks in the routes.
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import {
@@ -19,15 +21,19 @@ import {
   DeleteCommand,
   type NativeAttributeValue,
 } from '@aws-sdk/lib-dynamodb'
-import type { Image, Profile, Sheet } from '@aws-token-designer/shared'
+import type { Image, Job, JobStatus, Profile, Sheet } from '@aws-token-designer/shared'
 import {
+  DAILY_GENERATION_CAP,
   DEFAULT_CREDITS,
   DEFAULT_SHEET_NAME,
   DEFAULT_SHEET_TEMPLATE,
   MAX_SHEET_TOKENS,
   PK_PREFIX,
+  RATE_TTL_DAYS,
   SK_IMAGE_PREFIX,
+  SK_JOB_PREFIX,
   SK_PROFILE,
+  SK_RATE_PREFIX,
   SK_SHEET_PREFIX,
 } from '@aws-token-designer/shared'
 import { conflict, forbidden, internalError, notFound } from './errors.js'
@@ -65,6 +71,50 @@ export interface SheetItem extends EntityItem {
   name: string
   template: string
   images: string[]
+}
+
+export interface JobItem extends EntityItem {
+  type: 'generation'
+  status: JobStatus
+  imageId: string
+  prompt: string
+  negativePrompt?: string
+  style?: Job['style']
+  error?: string
+  expiresAt?: number
+}
+
+/** Jobs carry `entityId` so the API can answer 403 vs 404 for path ids. */
+export function toJobItem(job: Job): JobItem {
+  const { sub, id, ...rest } = job
+  return stripUndefined({
+    PK: `${PK_PREFIX}${sub}`,
+    SK: `${SK_JOB_PREFIX}${id}`,
+    entityId: id,
+    ...rest,
+  }) as unknown as JobItem
+}
+
+export function jobFromItem(item: JobItem): Job {
+  return {
+    id: item.entityId,
+    sub: subFromPk(item.PK),
+    type: item.type,
+    status: item.status,
+    imageId: item.imageId,
+    prompt: item.prompt,
+    negativePrompt: item.negativePrompt,
+    style: item.style,
+    error: item.error,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    expiresAt: item.expiresAt,
+  }
+}
+
+/** UTC date key for the daily generation cap (`RATE#<yyyy-mm-dd>`). */
+export function utcDateKey(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10)
 }
 
 export function toItem(entity: Omit<Image, 'sub'> & { sub: string }): ImageItem
@@ -234,6 +284,144 @@ export class Repo {
         Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_IMAGE_PREFIX}${imageId}` },
       }),
     )
+  }
+
+  // -- Jobs ------------------------------------------------------------------
+
+  async putJob(job: Job): Promise<void> {
+    await this.doc.send(new PutCommand({ TableName: this.table, Item: toJobItem(job) }))
+  }
+
+  /** Direct lookup inside the caller's partition (used by the worker). */
+  async getJob(sub: string, jobId: string): Promise<JobItem | null> {
+    const res = await this.doc.send(
+      new GetCommand({
+        TableName: this.table,
+        Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+      }),
+    )
+    return (res.Item as JobItem | undefined) ?? null
+  }
+
+  /** Cross-partition lookup via the `byId` GSI (403 vs 404 for GET /jobs). */
+  async findJobById(entityId: string): Promise<JobItem | null> {
+    const res = await this.doc.send(
+      new QueryCommand({
+        TableName: this.table,
+        IndexName: 'byId',
+        KeyConditionExpression: 'entityId = :id',
+        ExpressionAttributeValues: { ':id': entityId },
+        Limit: 1,
+      }),
+    )
+    return (res.Items?.[0] as JobItem | undefined) ?? null
+  }
+
+  async getJobForSub(sub: string, jobId: string): Promise<JobItem> {
+    const item = await this.findJobById(jobId)
+    if (!item) throw notFound('Job not found')
+    if (item.PK !== `${PK_PREFIX}${sub}`) throw forbidden('Job belongs to another user')
+    return item
+  }
+
+  /**
+   * Idempotency gate for the worker: pending → processing only. Returns false
+   * when another attempt already claimed the job (async retry) or it is
+   * terminal, so the caller must not call Stability again.
+   */
+  async claimJobForProcessing(sub: string, jobId: string): Promise<boolean> {
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression: 'SET #status = :processing, updatedAt = :now',
+          ConditionExpression: '#status = :pending',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':processing': 'processing',
+            ':pending': 'pending',
+            ':now': nowIso(),
+          },
+        }),
+      )
+      return true
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false
+      throw err
+    }
+  }
+
+  async markJobSucceeded(sub: string, jobId: string, imageId: string): Promise<void> {
+    await this.doc.send(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+        UpdateExpression:
+          'SET #status = :status, imageId = :imageId, updatedAt = :now REMOVE #error',
+        ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+        ExpressionAttributeValues: {
+          ':status': 'succeeded',
+          ':imageId': imageId,
+          ':now': nowIso(),
+        },
+      }),
+    )
+  }
+
+  async markJobFailed(sub: string, jobId: string, errorCode: string): Promise<void> {
+    await this.doc.send(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+        UpdateExpression: 'SET #status = :status, #error = :error, updatedAt = :now',
+        ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+        ExpressionAttributeValues: {
+          ':status': 'failed',
+          ':error': errorCode,
+          ':now': nowIso(),
+        },
+      }),
+    )
+  }
+
+  // -- Daily generation cap --------------------------------------------------
+
+  /**
+   * Atomically consume one generation from the user's daily allowance.
+   * Returns false when the cap is already reached. The condition is evaluated
+   * server-side, so two racing requests cannot both exceed the cap.
+   *
+   * Cap accounting: the increment happens before job creation/invoke, so a
+   * failed submission still consumes one slot. That is deliberate — it keeps
+   * the cap binding even when a caller repeatedly invokes a failing worker.
+   */
+  async consumeDailyGeneration(
+    sub: string,
+    date: string = utcDateKey(),
+  ): Promise<boolean> {
+    const expiresAt = Math.floor(Date.now() / 1000) + RATE_TTL_DAYS * 24 * 60 * 60
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_RATE_PREFIX}${date}` },
+          UpdateExpression: 'SET expiresAt = if_not_exists(expiresAt, :exp) ADD #count :one',
+          ConditionExpression: 'attribute_not_exists(#count) OR #count < :max',
+          ExpressionAttributeNames: { '#count': 'count' },
+          ExpressionAttributeValues: {
+            ':one': 1,
+            ':max': DAILY_GENERATION_CAP,
+            ':exp': expiresAt,
+          },
+          ReturnValues: 'UPDATED_NEW',
+        }),
+      )
+      return true
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false
+      throw err
+    }
   }
 
   // -- Sheets ----------------------------------------------------------------
