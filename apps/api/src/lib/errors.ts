@@ -38,3 +38,11 @@ export const rateLimited = (message = 'Daily generation limit reached'): ApiErro
 
 export const internalError = (message = 'Internal server error'): ApiError =>
   new ApiError(500, 'INTERNAL_ERROR', message)
+
+/**
+ * Billing is not configured yet (no Stripe price/secret/webhook secret). This
+ * is a deliberate 503 so unrelated routes keep working while an operator
+ * creates the out-of-band SSM parameters (PLAN 6.8, docs/TESTING.md).
+ */
+export const billingDisabled = (message = 'Billing is not configured'): ApiError =>
+  new ApiError(503, 'BILLING_DISABLED', message)

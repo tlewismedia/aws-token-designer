@@ -5,10 +5,12 @@ import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { getRequestId, requireAuth } from './lib/auth.js'
 import { ApiError, internalError } from './lib/errors.js'
+import { registerCheckoutRoutes } from './routes/checkout.js'
 import { registerImagesRoutes } from './routes/images.js'
 import { registerJobsRoutes } from './routes/jobs.js'
 import { registerMeRoutes } from './routes/me.js'
 import { registerSheetsRoutes } from './routes/sheets.js'
+import { registerWebhookRoutes } from './routes/webhooks.js'
 import type { ZodType, z } from 'zod'
 
 export type AppEnv = {
@@ -63,6 +65,10 @@ export function createApp(options: AppOptions = {}): App {
   // Health check (unauthenticated, PLAN 6.4).
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
+  // Stripe webhook (unauthenticated, PLAN 6.4/6.8): must be registered before
+  // the `requireAuth` middleware below. Signature verification is its auth.
+  registerWebhookRoutes(app)
+
   app.onError((err, c) => {
     const requestId = c.get('requestId')
     if (err instanceof ApiError) {
@@ -86,6 +92,7 @@ export function createApp(options: AppOptions = {}): App {
   registerImagesRoutes(app)
   registerJobsRoutes(app)
   registerSheetsRoutes(app)
+  registerCheckoutRoutes(app)
 
   return app
 }
