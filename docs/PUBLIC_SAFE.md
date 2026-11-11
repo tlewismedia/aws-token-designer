@@ -46,21 +46,21 @@ Use **SSM SecureString**, **GitHub Secrets**, or a private `terraform.tfvars` th
 
 ## Repo Hardening
 
-- [ ] `.gitignore` covers `.env*`, `.terraform/`, `*.tfstate*`, `*.tfvars` with secrets, `*.pem`, `cdk.out/`.
-- [ ] Run `gitleaks` / `trufflehog` before the first push and in CI.
-- [ ] GitHub secret scanning enabled.
-- [ ] Dependabot or Renovate enabled.
-- [ ] CodeQL enabled (free for public repos).
-- [ ] Branch protection: PR reviews and required status checks.
-- [ ] `SECURITY.md` with a vulnerability disclosure policy.
-- [ ] `LICENSE` chosen (MIT/Apache-2.0, or restrictive/private if protecting the business idea).
-- [ ] `CONTRIBUTING.md`, `CODEOWNERS`.
-- [ ] GitHub Actions uses OIDC, not long-lived AWS keys.
-- [ ] OIDC role trust policy restricted to the repo/branch.
-- [ ] Prod deployment uses a GitHub Environment with required reviewers.
-- [ ] Be careful with `pull_request_target` and fork PRs.
-- [ ] Never commit Terraform state or plan output.
-- [ ] Review logs for secret masking (`echo`, `set -x`).
+- [x] `.gitignore` covers `.env*`, `.terraform/`, `*.tfstate*`, `*.tfvars` with secrets, `*.pem`. (`cdk.out/` is not used by this repo.)
+- [ ] Run `gitleaks` / `trufflehog` before the first push and in CI. — gitleaks runs in the lefthook pre-commit hook; a CI gitleaks job is not configured yet (the optional CI jobs are Terraform plan and E2E).
+- [ ] GitHub secret scanning enabled. — Repository setting; enable in the GitHub UI.
+- [x] Dependabot or Renovate enabled. — `.github/dependabot.yml` covers npm and GitHub Actions weekly.
+- [ ] CodeQL enabled (free for public repos). — Optional repository setting.
+- [ ] Branch protection: PR reviews and required status checks. — Repository setting.
+- [x] `SECURITY.md` with a vulnerability disclosure policy. — Root `SECURITY.md`.
+- [ ] `LICENSE` chosen (MIT/Apache-2.0, or restrictive/private if protecting the business idea). — README says TBD.
+- [x] `CONTRIBUTING.md`, `CODEOWNERS`.
+- [x] GitHub Actions uses OIDC, not long-lived AWS keys. — The optional Terraform plan and E2E jobs assume roles via `configure-aws-credentials`; the required jobs use no AWS credentials.
+- [ ] OIDC role trust policy restricted to the repo/branch. — Role lives outside the repo; configure `sub` to the repository/branch when creating it.
+- [ ] Prod deployment uses a GitHub Environment with required reviewers. — Prod deploy is manual today; add an environment when CI-driven deploy lands.
+- [x] Be careful with `pull_request_target` and fork PRs. — No `pull_request_target` workflows.
+- [x] Never commit Terraform state or plan output. — `.gitignore` + gitleaks; `backend.hcl` is local-only.
+- [x] Review logs for secret masking (`echo`, `set -x`). — Scripts use `set -euo pipefail` and do not echo parameter values; CI jobs pass credentials via actions/env, not shell traces.
 
 ---
 

@@ -92,8 +92,10 @@ Isolation and cleanup:
   account-deletion API yet. This is accepted for the dev stage; delete the
   items manually if they get noisy.
 
-E2E requires a live dev backend and is intentionally **not** part of
-`npm test` or CI. Vitest excludes `apps/web/e2e/**`.
+E2E requires a live backend and is not part of `npm test`. It runs manually,
+or in CI's optional gated `e2e` job when `E2E_ROLE_ARN`, `E2E_BASE_URL`, and
+the `E2E_EMAIL`/`E2E_PASSWORD` secrets are configured (see "CI vs. manual
+checks" below). Vitest excludes `apps/web/e2e/**`.
 
 ## Manual smoke checklist
 
@@ -196,9 +198,10 @@ aws dynamodb query --table-name "$TABLE" \
   --region us-west-2
 ```
 
-Alarms: `token-designer-dev-generation-count-daily` (>50/day) and
-`token-designer-dev-estimated-ai-cost-daily` (>$5/day), both Sum over 86400s
-against namespace `TokenDesigner`, dimension `Stage=dev`.
+Alarms: `token-designer-dev-generation-count-daily` (>50/day),
+`token-designer-dev-estimated-ai-cost-daily` (>$5/day), and
+`token-designer-dev-generation-failures` (handled failures, Sum ≥ 1 over 5
+min), all against namespace `TokenDesigner`, dimension `Stage=dev`.
 
 ## Payments smoke (Phase 4)
 
@@ -373,8 +376,9 @@ sends the action on the `ALARM` transition):
 STAGE=dev REGION=us-west-2
 for name in \
   api-5xx api-lambda-errors worker-lambda-errors \
-  api-lambda-throttles worker-lambda-throttles dynamodb-throttled-requests \
-  generation-count-daily estimated-ai-cost-daily; do
+  api-lambda-throttles worker-lambda-throttles \
+  dynamodb-read-throttle-events dynamodb-write-throttle-events \
+  generation-failures generation-count-daily estimated-ai-cost-daily; do
     alarm="token-designer-${STAGE}-${name}"
     aws cloudwatch set-alarm-state --alarm-name "$alarm" \
       --state-value ALARM --state-reason "test trigger" --region "${REGION}"
@@ -410,10 +414,23 @@ curl -s -o /dev/null -w "%{http_code}\n" "$WEB/api/me"   # 401
 curl -s -o /dev/null -w "%{http_code}\n" "$WEB/login"    # 200 (SPA fallback)
 curl -s -o /dev/null -w "%{http_code}\n" "$WEB/return?session_id=cs_test_x"  # 200
 
-# 1. Browser journey against the deployed prod SPA (register → upload →
-#    generate → sheet → print → checkout return).
-E2E_BASE_URL="$WEB" E2E_EMAIL="e2e-$(date +%s)@example.com" npm run e2e
+# 1. Browser journey against the deployed prod SPA. First seed the account the
+#    login test uses (the registration test creates its own throwaway user).
+TF_ENV=prod \
+  SEED_EMAIL="<seeded-e2e-email>" \
+  SEED_PASSWORD="<seeded-e2e-password>" \
+  npm run seed --workspace @aws-token-designer/api
+
+E2E_BASE_URL="$WEB" \
+E2E_EMAIL="<seeded-e2e-email>" \
+E2E_PASSWORD="<seeded-e2e-password>" \
+E2E_USER_POOL_ID="$(terraform -chdir=infra/envs/prod output -raw user_pool_id)" \
+  npm run e2e
 ```
+
+The login journey needs a **pre-seeded** account; do not use an ad-hoc
+`e2e+<timestamp>@example.com` address for `E2E_EMAIL` (that address belongs to
+the registration test, which creates and optionally deletes its own user).
 
 What is verified without operator secrets:
 
@@ -431,10 +448,11 @@ the exact checks run when prod is smoke-tested; do not claim those two paths
 green until the SSM SecureStrings exist.
 
 ```sh
-# Post-smoke cleanup for the synthetic E2E user (if the AWS CLI is available),
-# per the browser E2E cleanup notes above.
+# Post-smoke cleanup for the registration test's synthetic user (if the AWS CLI
+# is available), per the browser E2E cleanup notes above. Registration users
+# use the e2e+<timestamp>@example.com form.
 aws cognito-idp admin-delete-user --user-pool-id "$(terraform -chdir=infra/envs/prod output -raw user_pool_id)" \
-  --username "e2e-...@example.com" --region us-west-2
+  --username "e2e+<timestamp>@example.com" --region us-west-2
 ```
 
 ## Rollback drill
@@ -471,9 +489,9 @@ deploy.
 | unit/component tests | yes (Node job) | — |
 | DynamoDB Local integration suite | yes (service container) | `RUN_DDB_INTEGRATION=1 npm test --workspace @aws-token-designer/api` |
 | `terraform fmt -check` + `validate` | yes (all modules + both envs) | — |
-| `terraform plan` (dev) | optional, only when `AWS_PLAN_ROLE_ARN` is set (OIDC) | locally with `backend.hcl` |
+| `terraform plan` (dev) | optional OIDC job; requires `AWS_PLAN_ROLE_ARN` **and** `TF_STATE_BUCKET`; runs `-lock=false` | locally with `backend.hcl` |
 | diagram staleness | yes | — |
-| Playwright E2E | **no** (needs live AWS) | `E2E_BASE_URL=... npm run e2e` |
+| Playwright E2E | optional OIDC job; gated on `E2E_ROLE_ARN`/`E2E_BASE_URL` and `E2E_EMAIL`/`E2E_PASSWORD` secrets | `E2E_BASE_URL=... npm run e2e` |
 | alarm/budget drill | **no** | runbook commands above |
 | prod smoke | **no** | commands above |
 
@@ -513,7 +531,7 @@ Phase 5 (CloudFront hosting) is deployed to dev and verified (SPA, same-origin
 `/api/*`, deep links, security headers, `/index.html`-only invalidation).
 
 Phase 6 (this branch): unit/component/integration suites are green locally and
-in CI; the prod environment plans cleanly (67 creates — see the PR notes) and
+in CI; the prod environment plans cleanly (72 creates — see the PR notes) and
 is **not applied**; the new alarm matrix is defined but the drill is run by the
 operator after apply. Prod smoke is limited to the no-key paths listed above
 (backlog #29/#34). Update this section after the prod apply and the alarm/budget

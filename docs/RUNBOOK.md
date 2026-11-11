@@ -17,15 +17,17 @@ once per environment from the email SNS sends after apply.
 
 | Alarm | Namespace / metric | What it means |
 |---|---|---|
-| `token-designer-<stage>-api-5xx` | `AWS/ApiGateway` `5xx`, `ApiId`+`Stage`, Sum ≥ 1 / 5 min | API Gateway itself is returning server errors (bad integration, Lambda crash, timeout). |
+| `token-designer-<stage>-api-5xx` | `AWS/ApiGateway` `5xx`, `ApiId`+`Stage=api`, Sum ≥ 1 / 5 min | API Gateway itself is returning server errors (bad integration, Lambda crash, timeout). The HTTP API stage is literally `api`. |
 | `token-designer-<stage>-api-lambda-errors` | `AWS/Lambda` `Errors`, `FunctionName=…-api` | The API Lambda threw (unhandled exception, SDK/network failure). |
-| `token-designer-<stage>-worker-lambda-errors` | `AWS/Lambda` `Errors`, `FunctionName=…-generate-worker` | The generation worker failed (provider, sharp, S3/DDB). |
+| `token-designer-<stage>-worker-lambda-errors` | `AWS/Lambda` `Errors`, `FunctionName=…-generate-worker` | The worker **crashed** (unhandled exception, timeout). Handled failures do not increment this — see `generation-failures`. |
 | `token-designer-<stage>-api-lambda-throttles` | `AWS/Lambda` `Throttles`, `FunctionName=…-api` | API concurrency exceeded; callers saw 429/5xx. |
 | `token-designer-<stage>-worker-lambda-throttles` | `AWS/Lambda` `Throttles`, `FunctionName=…-generate-worker` | Generation concurrency exceeded; async retries will run. |
-| `token-designer-<stage>-dynamodb-throttled-requests` | `AWS/DynamoDB` `ThrottledRequests`, `TableName` | Table throttled (unexpected for on-demand; investigate hot partition). |
+| `token-designer-<stage>-dynamodb-read-throttle-events` | `AWS/DynamoDB` `ReadThrottleEvents`, `TableName` | Reads exceeded capacity (unexpected for on-demand; investigate a hot partition). |
+| `token-designer-<stage>-dynamodb-write-throttle-events` | `AWS/DynamoDB` `WriteThrottleEvents`, `TableName` | Writes exceeded capacity (same triage). |
+| `token-designer-<stage>-generation-failures` | `TokenDesigner` `GenerationFailures`, `Stage`, Sum ≥ 1 / 5 min | A **handled** generation failure (kill switch, missing key, Stability non-2xx, sharp/S3/DDB) marked a job failed and returned success. Lambda `Errors` stays flat. |
 | `token-designer-<stage>-generation-count-daily` | `TokenDesigner` `GenerationCount`, Sum > 50 / day | Volume spike or abuse; check the cap and per-user counts. |
 | `token-designer-<stage>-estimated-ai-cost-daily` | `TokenDesigner` `EstimatedAICost`, Sum > $5 / day | AI spend is running ahead of the guardrail; consider the kill switch. |
-| Budget `token-designer-<stage>-monthly` | AWS Budgets (actual spend) | $1/$5/$10/$25 thresholds on a $25/month budget. |
+| Budget `token-designer-<stage>-monthly` | AWS Budgets (actual spend) | $1/$5/$10/$25 thresholds on a $25/month budget; the topic policy grants Budgets publish. |
 
 All platform alarms use `period = 300`, one evaluation, threshold 1, and
 `treat_missing_data = notBreaching`, so a quiet dev stage does not page.
@@ -105,7 +107,12 @@ Terraform variable in the monitoring module; changing it is a normal
    outage (Cognito/DynamoDB/S3), record it and wait for AWS; the retries are
    idempotent.
 
-### Worker Lambda errors
+### Worker Lambda errors (crashes only)
+
+`worker-lambda-errors` only catches unhandled crashes/timeouts. The worker
+handles normal failures (kill switch, missing key, Stability non-2xx,
+sharp/S3/DDB) by marking the job failed and returning success, so those appear
+as `generation-failures` instead.
 
 1. `aws logs tail "/aws/lambda/token-designer-${STAGE}-generate-worker" --since 1h --region "$REGION"`.
 2. Look for `GENERATION_FAILED`, `GENERATION_DISABLED`, timeout, or `sharp`
@@ -113,6 +120,21 @@ Terraform variable in the monitoring module; changing it is a normal
 3. If Stability is failing and cost is a concern, flip the kill switch off.
 4. Failed jobs are safe to retry by submitting again; images are only created
    by the first `pending → processing` transition.
+
+### Generation failures (handled)
+
+1. The `GenerationFailures` metric is emitted by every handled failure path,
+   with a non-metric `FailureCode` property in the same EMF line
+   (`GENERATION_DISABLED` or `GENERATION_FAILED`).
+2. `aws logs tail "/aws/lambda/token-designer-${STAGE}-generate-worker" --since 30m --region "$REGION"`:
+   look for `generation disabled by kill switch`, `stability key unavailable`,
+   `stability request failed`, or `generation processing failed`.
+3. If the cause is cost/abuse, turn the kill switch off. If it is a transient
+   Stability/provider failure, jobs can be resubmitted manually.
+4. If `GENERATION_DISABLED` fires unexpectedly, check
+   `/token-designer/<stage>/generation-enabled` (see "Kill switch").
+5. If `sharp`/S3/DDB failures recur, inspect the safe error code and roll back
+   the Lambda if a deploy introduced the problem.
 
 ### Throttles (Lambda)
 
@@ -124,12 +146,13 @@ Terraform variable in the monitoring module; changing it is a normal
    `reserved_concurrency` (PLAN §7.6: API 10, worker 5).
 3. Check for a runaway client loop; the daily cap bounds generation.
 
-### DynamoDB throttled requests
+### DynamoDB throttle events
 
-On-demand tables rarely throttle. Check for a hot partition (one user doing a
-tight loop) and recent deploys. The SDK retries transient errors; persistent
-throttles mean a design issue or an account-level limit — record it and
-escalate.
+On-demand tables rarely throttle. `ReadThrottleEvents`/`WriteThrottleEvents`
+are table-level metrics (dimension `TableName` only), so the alarms watch the
+two signals directly. Check for a hot partition (one user doing a tight loop)
+and recent deploys. The SDK retries transient errors; persistent throttles mean
+a design issue or an account-level limit — record it and escalate.
 
 ### Generation count / AI cost daily
 
@@ -262,8 +285,9 @@ setting each alarm state directly (CloudWatch sends the alarm action on the
 ```sh
 for name in \
   api-5xx api-lambda-errors worker-lambda-errors \
-  api-lambda-throttles worker-lambda-throttles dynamodb-throttled-requests \
-  generation-count-daily estimated-ai-cost-daily; do
+  api-lambda-throttles worker-lambda-throttles \
+  dynamodb-read-throttle-events dynamodb-write-throttle-events \
+  generation-failures generation-count-daily estimated-ai-cost-daily; do
     alarm="token-designer-${STAGE}-${name}"
     aws cloudwatch set-alarm-state --alarm-name "$alarm" \
       --state-value ALARM --state-reason "drill $(date -u +%FT%TZ)" \
@@ -276,10 +300,13 @@ for name in \
 ```
 
 For each alarm confirm the SNS email arrives. The monthly budget cannot be
-forced the same way; verify it by lowering the limit/threshold temporarily in
-the Budgets console (or `aws budgets update-budget`), waiting for the next
-evaluation, then restoring it. Record the drill date and each alarm's result in
-the incident log.
+forced with `set-alarm-state`; verify delivery by lowering the limit/threshold
+temporarily in the Budgets console (or `aws budgets update-budget`), waiting
+for the next evaluation, then restoring it. The SNS topic policy grants
+`budgets.amazonaws.com` publish (scoped to this account and budget), so the
+budget notification should reach the same email subscription; if it does not,
+check the topic policy and the subscription's confirmation state first. Record
+the drill date and each alarm's result in the incident log.
 
 ## Incident logging
 
@@ -325,7 +352,7 @@ aws ssm get-parameter --name "/token-designer/${STAGE}/generation-enabled" \
 - Review Dependabot PRs; run `npm audit --omit=dev`.
 - Review Cost Explorer for the week and the budget forecast.
 - Scan API 5xx and Lambda error rates (`AWS/Lambda`, `AWS/ApiGateway`).
-- Check DynamoDB `ThrottledRequests` and consumed capacity.
+- Check DynamoDB `ReadThrottleEvents`/`WriteThrottleEvents` and consumed capacity.
 - Confirm CloudWatch Logs retention is still 7d dev / 30d prod.
 - Confirm state bucket versioning and that no plan/state files are in git.
 - Re-read `docs/RAID.md`; update mitigations and open issues.

@@ -15,10 +15,10 @@ accepted with an alarm/check; **Open** = action still needed.
 | CloudFront `/api/*` path mapping wrong | Medium | High | Verified in dev: SPA + same-origin API, deep links, API statuses preserved; execute-api fallback remains. | Mitigated |
 | Stripe signature / raw-body issues | Medium | High | Unit tests sign real fixtures with `Stripe.webhooks.generateTestHeaderString`; webhook uses the execute-api URL. Live checkout still pending operator keys. | Monitored |
 | AI cost abuse | Medium | Medium | Per-user daily cap (20), fail-closed kill switch, daily count/cost alarms, API throttling, budget. | Mitigated |
-| Terraform learning curve | Medium | Medium | `docs/TERRAFORM.md` primer, per-env state, plan review, `prevent_destroy` on prod stateful resources. | Mitigated |
-| Free-tier changes | Low | Low | Budget ($1/$5/$10/$25), cost doc, weekly Cost Explorer check. Cost Anomaly Detection is blocked by an account quota (see Issues). | Monitored |
+| Terraform learning curve | Medium | Medium | `docs/TERRAFORM.md` primer, per-env state, plan review, deletion protection on prod stateful resources. | Mitigated |
+| Free-tier changes | Low | Low | Budget ($1/$5/$10/$25), alarms, cost doc, weekly Cost Explorer check. Cost Anomaly Detection is blocked by an account quota (see Issues). | Monitored |
 | Cold starts | Low | Low | arm64, small bundles, no provisioned concurrency (accepted for a demo). | Monitored |
-| DynamoDB throttling | Low | Low | On-demand table, SDK retries, `ThrottledRequests` alarm. | Monitored |
+| DynamoDB throttling | Low | Low | On-demand table, SDK retries, `ReadThrottleEvents`/`WriteThrottleEvents` alarms. | Monitored |
 | Print quality | Low | Low | Thumbnail printing kept for parity; documented later improvement. | Monitored |
 | No real-time updates | Low | Low | Polling + refetch-on-focus (accepted). | Monitored |
 | Auto-confirm sign-ups | Medium | Medium | Demo-only; documented; production would enable verification. | Monitored |
@@ -49,7 +49,7 @@ accepted with an alarm/check; **Open** = action still needed.
 | 2026-11-11 | Phase 5: media bucket CORS rule moved from `storage` to `cloudfront` (needs the distribution origin). S3 has one CORS singleton per bucket, so a `moved` block updates it in place instead of racing create/destroy. | Fixed |
 | 2026-11-11 | Phase 5: CloudFront cache/origin policy ids were hardcoded managed ids. Documented (`CachingOptimized`, `CachingDisabled`, `AllViewerExceptHostHeader`) and commented in the module; no API to validate them beyond successful deploy/verification. | Mitigated |
 | 2026-11-11 | Phase 5: PLAN's "403/404 → /index.html" would rewrite real API statuses distribution-wide. Replaced with a viewer-request CloudFront Function on the default behavior only; documented deviation. | Fixed (deviation) |
-| 2026-11-11 | Phase 6: Terraform `lifecycle.prevent_destroy` accepts only literal values, so the requested module variable cannot drive it. DynamoDB/Cognito use native deletion protection (`deletion_protection_enabled` / `deletion_protection`), S3 uses a literal `prevent_destroy` (dev teardown needs a temporary edit). Documented in `docs/TERRAFORM.md`. | Mitigated (deviation) |
+| 2026-11-11 | Phase 6: Terraform `lifecycle.prevent_destroy` accepts only literal values, so the requested module variable cannot drive it. DynamoDB/Cognito use native deletion protection (`deletion_protection_enabled` / `deletion_protection`); S3 uses prod-only bucket policies denying `s3:DeleteBucket` (dev stays destroyable). Documented in `docs/TERRAFORM.md`. | Mitigated (deviation) |
 | 2026-11-11 | Phase 6: no Stability AI SecureString exists, so live generation cannot succeed. The failure path is verified; success needs an operator key. | Open — backlog #29 |
 | 2026-11-11 | Phase 6: no Stripe SecureStrings/price id exist, so checkout/webhook cannot fulfil. Failure paths are verified; live test-mode checkout needs operator keys. | Open — backlog #34 |
 | 2026-11-11 | Phase 6: account `UnreservedConcurrentExecutions` minimum (10) leaves no room for the planned reservations; both Lambdas run unreserved. | Open — external quota |
@@ -71,7 +71,7 @@ accepted with an alarm/check; **Open** = action still needed.
 - **dev:** deployed and verified through Phase 5; Phase 6 alarm matrix and
   monitoring/log-retention changes are defined on this branch, pending apply.
 - **prod:** environment added (`infra/envs/prod`), `terraform plan` clean
-  (67 creates, read-only), **not applied**; prod smoke limited to no-key paths.
+  (72 creates, read-only), **not applied**; prod smoke limited to no-key paths.
 - **Tests:** unit/component/integration green; E2E green against dev; CI covers
   lint/typecheck/build/tests/validate and an optional dev plan.
 - **Blockers:** Stability/Stripe operator keys (#29/#34) and the account

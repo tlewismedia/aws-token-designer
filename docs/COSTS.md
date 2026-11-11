@@ -88,8 +88,8 @@ and alarms remain the backstop either way.
 - Lower Lambda memory (1024 MB) only after checking p95 latency; keep the
   `sharp` layer compatible.
 - Delete `dev` when it is not in use (prod buckets/table/user pool are
-  protected by deletion protection; dev can be torn down — see
-  `docs/TERRAFORM.md` for the S3 caveat).
+  protected by native deletion protection and S3 bucket policies; dev has no
+  such guards and can be torn down).
 
 ## Related
 

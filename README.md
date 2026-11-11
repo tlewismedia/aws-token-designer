@@ -68,7 +68,8 @@ drill, prod smoke, and rollback drill are in
 [`docs/TESTING.md`](docs/TESTING.md) and [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 Production stateful resources are protected against destruction (DynamoDB and
-Cognito native deletion protection, S3 `prevent_destroy`); see
+Cognito native deletion protection; prod-only S3 bucket policies denying
+`DeleteBucket`); see
 [`docs/TERRAFORM.md`](docs/TERRAFORM.md#prevent_destroy--deletion-protection).
 
 ## Diagrams
