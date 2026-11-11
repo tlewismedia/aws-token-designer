@@ -330,9 +330,10 @@ export class Repo {
   /**
    * Idempotency gate for the worker: pending → processing. A second attempt
    * while the lease is fresh no-ops; a retry may reclaim a `processing` job
-   * whose `processingAt` is older than JOB_PROCESSING_LEASE_MS (e.g. the first
-   * worker died mid-flight), so jobs cannot stay stuck forever.
-   * Returns false when another attempt holds a fresh lease or the job is
+   * whose `processingAt` is older than JOB_PROCESSING_LEASE_MS (150 s: above
+   * the 120 s worker timeout, below Lambda's ~180 s first async retry), so a
+   * timed-out job is recovered by the retry rather than staying stuck until
+   * TTL. Returns false when another attempt holds a fresh lease or the job is
    * terminal.
    */
   async claimJobForProcessing(sub: string, jobId: string): Promise<boolean> {
@@ -390,6 +391,43 @@ export class Repo {
     } catch (err) {
       if (isConditionalCheckFailed(err)) {
         logJobTransitionNoop(jobId, 'succeeded')
+        return
+      }
+      throw err
+    }
+  }
+
+  /**
+   * Pending-only failure transition used by the API when the async invoke
+   * itself throws. If Lambda actually accepted the invocation and only the
+   * response was lost, the worker may already be processing; this no-ops so
+   * it cannot preempt a subsequent worker success. Conditional failure is a
+   * logged no-op.
+   */
+  async markPendingJobFailed(
+    sub: string,
+    jobId: string,
+    errorCode: string,
+  ): Promise<void> {
+    try {
+      await this.doc.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `${PK_PREFIX}${sub}`, SK: `${SK_JOB_PREFIX}${jobId}` },
+          UpdateExpression: 'SET #status = :status, #error = :error, updatedAt = :now',
+          ConditionExpression: '#status = :pending',
+          ExpressionAttributeNames: { '#status': 'status', '#error': 'error' },
+          ExpressionAttributeValues: {
+            ':status': 'failed',
+            ':error': errorCode,
+            ':pending': 'pending',
+            ':now': nowIso(),
+          },
+        }),
+      )
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) {
+        logJobTransitionNoop(jobId, 'pending-failed')
         return
       }
       throw err
@@ -631,7 +669,10 @@ export class Repo {
 }
 
 /** A conditional terminal transition lost to an already-terminal job. */
-function logJobTransitionNoop(jobId: string, attempted: 'succeeded' | 'failed'): void {
+function logJobTransitionNoop(
+  jobId: string,
+  attempted: 'succeeded' | 'failed' | 'pending-failed',
+): void {
   console.log(
     JSON.stringify({
       level: 'info',

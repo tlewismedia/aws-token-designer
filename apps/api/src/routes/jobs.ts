@@ -56,7 +56,9 @@ export function registerJobsRoutes(app: App): void {
         }),
       )
       try {
-        await repo.markJobFailed(sub, jobId, 'GENERATION_FAILED')
+        // Pending-only: if the invoke was actually accepted and the worker
+        // is processing, do not preempt it — the worker will settle the job.
+        await repo.markPendingJobFailed(sub, jobId, 'GENERATION_FAILED')
       } catch {
         // Ignore: the 500 below is the primary signal.
       }

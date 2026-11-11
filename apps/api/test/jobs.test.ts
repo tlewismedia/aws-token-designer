@@ -10,7 +10,7 @@ process.env.WORKER_FUNCTION_NAME = 'token-designer-dev-generate-worker'
 const repoStub = vi.hoisted(() => ({
   consumeDailyGeneration: vi.fn(),
   putJob: vi.fn(),
-  markJobFailed: vi.fn(),
+  markPendingJobFailed: vi.fn(),
   getJobForSub: vi.fn(),
 }))
 
@@ -65,7 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   repoStub.consumeDailyGeneration.mockResolvedValue(true)
   repoStub.putJob.mockResolvedValue(undefined)
-  repoStub.markJobFailed.mockResolvedValue(undefined)
+  repoStub.markPendingJobFailed.mockResolvedValue(undefined)
   invokeMock.invokeGenerationWorker.mockResolvedValue(undefined)
 })
 
@@ -140,7 +140,11 @@ describe('POST /images/generate', () => {
     const body = await json<{ error: { code: string } }>(res)
     expect(body.error.code).toBe('INTERNAL_ERROR')
     const job = repoStub.putJob.mock.calls[0][0] as Job
-    expect(repoStub.markJobFailed).toHaveBeenCalledWith('user-1', job.id, 'GENERATION_FAILED')
+    expect(repoStub.markPendingJobFailed).toHaveBeenCalledWith(
+      'user-1',
+      job.id,
+      'GENERATION_FAILED',
+    )
     errorSpy.mockRestore()
   })
 })

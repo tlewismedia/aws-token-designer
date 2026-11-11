@@ -63,11 +63,13 @@ export const JOB_POLL_INTERVAL_MS = 2000
 export const JOB_POLL_MAX_ATTEMPTS = 75
 
 /**
- * Worker lease for a `processing` job. A retry may reclaim a job whose
- * `processingAt` is older than this (e.g. the first worker died mid-flight),
- * while a concurrent attempt against a fresh lease still no-ops.
+ * Worker lease for a `processing` job. Must be longer than the 120 s worker
+ * timeout but shorter than Lambda's first async retry (~180 s after the
+ * original invocation), so a timed-out worker's retry can reclaim the job
+ * instead of no-op'ing until the 7-day TTL. A concurrent attempt against a
+ * fresh lease still no-ops.
  */
-export const JOB_PROCESSING_LEASE_MS = 5 * 60 * 1000
+export const JOB_PROCESSING_LEASE_MS = 150_000
 
 /** Stability request timeout (milliseconds). */
 export const STABILITY_TIMEOUT_MS = 90_000

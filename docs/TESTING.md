@@ -135,8 +135,10 @@ Live `dev` checks (replace `$API` / `$TOKEN` as above). Generation is async:
 Polling is bounded: the client stops after ~150 s (75 attempts at 2 s) even if
 the job never reaches a terminal state, and shows “still working — check the
 gallery” instead of polling forever. Server-side, a `processing` job whose
-`processingAt` lease is older than 5 minutes can be reclaimed by a Lambda
-async retry, so a crashed worker cannot leave a job stuck forever.
+`processingAt` lease is older than 150 s can be reclaimed by a Lambda async
+retry, so a crashed/timed-out worker cannot leave a job stuck forever. The
+lease is deliberately longer than the 120 s worker timeout and shorter than
+Lambda's ~180 s first retry.
 
 ```sh
 # 1. Submit a generation.

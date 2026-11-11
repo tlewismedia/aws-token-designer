@@ -16,6 +16,7 @@ import {
   ListTablesCommand,
 } from '@aws-sdk/client-dynamodb'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
+import { JOB_PROCESSING_LEASE_MS } from '@aws-token-designer/shared'
 import { Repo, imageFromItem, sheetFromItem, createDocClient } from '../src/lib/db.js'
 import { ulid } from '../src/lib/ulid.js'
 
@@ -179,6 +180,22 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
       expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
     })
 
+    /** Force a job into a processing state with a specific lease timestamp. */
+    async function setProcessingAt(jobId: string, atMs: number): Promise<void> {
+      await doc.send(
+        new UpdateCommand({
+          TableName: TABLE,
+          Key: { PK: 'USER#user-a', SK: `JOB#${jobId}` },
+          UpdateExpression: 'SET #status = :processing, processingAt = :at',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':processing': 'processing',
+            ':at': new Date(atMs).toISOString(),
+          },
+        }),
+      )
+    }
+
     it('allows exactly 20 generations per UTC day', async () => {
       const date = '2099-01-01'
       for (let i = 0; i < 20; i++) {
@@ -214,28 +231,64 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
       expect(item?.error).toBe('GENERATION_DISABLED')
     })
 
-    it('reclaims a stale processing lease but not a fresh one', async () => {
-      const job = makeJob('job-lease')
+    it('reclaims only a processing lease older than 150 s', async () => {
+      // Just outside the lease: reclaimable (this is the ~180 s Lambda retry
+      // window after a 120 s worker timeout).
+      const stale = makeJob('job-lease-stale')
+      await repo.putJob(stale)
+      await setProcessingAt(stale.id, Date.now() - JOB_PROCESSING_LEASE_MS - 5_000)
+      await expect(repo.claimJobForProcessing('user-a', stale.id)).resolves.toBe(true)
+      // The reclaim refreshed processingAt, so a concurrent retry no-ops.
+      await expect(repo.claimJobForProcessing('user-a', stale.id)).resolves.toBe(false)
+      const reclaimed = await repo.getJob('user-a', stale.id)
+      expect(reclaimed?.status).toBe('processing')
+      expect(reclaimed?.processingAt).toBeDefined()
+
+      // Just inside the lease: still owned by the first attempt, no reclaim.
+      const fresh = makeJob('job-lease-fresh')
+      await repo.putJob(fresh)
+      await setProcessingAt(fresh.id, Date.now() - JOB_PROCESSING_LEASE_MS + 10_000)
+      await expect(repo.claimJobForProcessing('user-a', fresh.id)).resolves.toBe(false)
+    })
+
+    it('reclaims a legacy processing job with no processingAt', async () => {
+      const job = makeJob('job-lease-legacy')
       await repo.putJob(job)
-      // Simulate a worker that claimed the job 10 minutes ago and died.
       await doc.send(
         new UpdateCommand({
           TableName: TABLE,
           Key: { PK: 'USER#user-a', SK: `JOB#${job.id}` },
-          UpdateExpression: 'SET #status = :processing, processingAt = :old',
+          UpdateExpression: 'SET #status = :processing',
           ExpressionAttributeNames: { '#status': 'status' },
-          ExpressionAttributeValues: {
-            ':processing': 'processing',
-            ':old': new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-          },
+          ExpressionAttributeValues: { ':processing': 'processing' },
         }),
       )
       await expect(repo.claimJobForProcessing('user-a', job.id)).resolves.toBe(true)
-      // The reclaim refreshed processingAt, so a concurrent retry no-ops.
-      await expect(repo.claimJobForProcessing('user-a', job.id)).resolves.toBe(false)
-      const item = await repo.getJob('user-a', job.id)
+    })
+
+    it('a pending-only API failure cannot preempt a processing worker', async () => {
+      const job = makeJob('job-api-race')
+      await repo.putJob(job)
+      await repo.claimJobForProcessing('user-a', job.id) // worker owns it
+      // The API invoke response was lost: the pending-only transition no-ops.
+      await repo.markPendingJobFailed('user-a', job.id, 'GENERATION_FAILED')
+      let item = await repo.getJob('user-a', job.id)
       expect(item?.status).toBe('processing')
-      expect(item?.processingAt).toBeDefined()
+      expect(item?.error).toBeUndefined()
+      // The worker then completes normally.
+      await repo.markJobSucceeded('user-a', job.id, job.imageId)
+      item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('succeeded')
+      expect(item?.error).toBeUndefined()
+    })
+
+    it('pending-only failure marks a still-pending job failed', async () => {
+      const job = makeJob('job-api-pending-fail')
+      await repo.putJob(job)
+      await repo.markPendingJobFailed('user-a', job.id, 'GENERATION_FAILED')
+      const item = await repo.getJob('user-a', job.id)
+      expect(item?.status).toBe('failed')
+      expect(item?.error).toBe('GENERATION_FAILED')
     })
 
     it('a late/API failure cannot flip a succeeded job', async () => {
