@@ -15,7 +15,13 @@ export function resetS3ClientForTests(): void {
   client = null
 }
 
-/** Presigned PUT constrained to a content type and exact content length. */
+/**
+ * Presigned PUT. The URL signs `content-length`, so it only accepts an upload
+ * of exactly `size` bytes. It does NOT sign `content-type`: the SDK treats
+ * content-type as an unsignable header, so a client can declare one type and
+ * send another. The real type control is magic-byte validation on complete
+ * (lib/process-image.ts).
+ */
 export async function createPresignedPut(
   cfg: ApiConfig,
   key: string,
