@@ -458,6 +458,79 @@ describe('sheets routes', () => {
     })
     expect(res.status).toBe(200)
     expect(repoStub.updateSheet).toHaveBeenCalledWith('user-1', 'sheet-1', { images: [] })
+    expect(repoStub.getImageForSub).not.toHaveBeenCalled()
+  })
+
+  it('accepts PATCH images referencing ready, owned images', async () => {
+    vi.clearAllMocks()
+    repoStub.getSheetForSub.mockResolvedValue(sheet)
+    repoStub.getImageForSub.mockResolvedValue({ entityId: 'img-1', status: 'ready' })
+    const app = createApp()
+    const res = await authedRequest(app, '/sheets/sheet-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ images: ['img-1', 'img-1'] }),
+    })
+    expect(res.status).toBe(200)
+    expect(repoStub.getImageForSub).toHaveBeenCalledTimes(2)
+    expect(repoStub.getImageForSub).toHaveBeenCalledWith('user-1', 'img-1')
+    expect(repoStub.updateSheet).toHaveBeenCalledWith('user-1', 'sheet-1', {
+      images: ['img-1', 'img-1'],
+    })
+  })
+
+  it('rejects PATCH images with a foreign image id (403)', async () => {
+    vi.clearAllMocks()
+    repoStub.getSheetForSub.mockResolvedValue(sheet)
+    repoStub.getImageForSub.mockRejectedValue(forbidden('Image belongs to another user'))
+    const app = createApp()
+    const res = await authedRequest(app, '/sheets/sheet-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ images: ['someone-elses-image'] }),
+    })
+    expect(res.status).toBe(403)
+    expect(envelope(await json(res)).code).toBe('FORBIDDEN')
+    expect(repoStub.updateSheet).not.toHaveBeenCalled()
+  })
+
+  it('rejects PATCH images with an unknown image id (404)', async () => {
+    vi.clearAllMocks()
+    repoStub.getSheetForSub.mockResolvedValue(sheet)
+    repoStub.getImageForSub.mockRejectedValue(notFound('Image not found'))
+    const app = createApp()
+    const res = await authedRequest(app, '/sheets/sheet-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ images: ['missing-image'] }),
+    })
+    expect(res.status).toBe(404)
+    expect(envelope(await json(res)).code).toBe('NOT_FOUND')
+    expect(repoStub.updateSheet).not.toHaveBeenCalled()
+  })
+
+  it('rejects PATCH images that are not ready (400)', async () => {
+    vi.clearAllMocks()
+    repoStub.getSheetForSub.mockResolvedValue(sheet)
+    repoStub.getImageForSub.mockResolvedValue({ entityId: 'img-1', status: 'pending' })
+    const app = createApp()
+    const res = await authedRequest(app, '/sheets/sheet-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ images: ['img-1'] }),
+    })
+    expect(res.status).toBe(400)
+    expect(envelope(await json(res)).code).toBe('INVALID_REQUEST')
+    expect(repoStub.updateSheet).not.toHaveBeenCalled()
+  })
+
+  it('rejects PATCH images with more than 63 entries (schema)', async () => {
+    vi.clearAllMocks()
+    const app = createApp()
+    const res = await authedRequest(app, '/sheets/sheet-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ images: Array.from({ length: 64 }, (_, i) => `img-${i}`) }),
+    })
+    expect(res.status).toBe(400)
+    expect(envelope(await json(res)).code).toBe('VALIDATION_ERROR')
+    expect(repoStub.getImageForSub).not.toHaveBeenCalled()
+    expect(repoStub.updateSheet).not.toHaveBeenCalled()
   })
 })
 

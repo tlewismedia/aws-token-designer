@@ -42,6 +42,22 @@ export function registerSheetsRoutes(app: App): void {
     const sheetId = c.req.param('id')
 
     await repo.getSheetForSub(sub, sheetId) // ownership + existence
+
+    // A full replacement of `images` must reference only images the caller
+    // owns and that are ready. `[]` (clear) is always valid. The 63 cap is
+    // already enforced by updateSheetRequestSchema. `getImageForSub` throws
+    // 403 for another user's id and 404 when the id is unknown.
+    if (body.images !== undefined && body.images.length > 0) {
+      await Promise.all(
+        body.images.map(async (imageId) => {
+          const image = await repo.getImageForSub(sub, imageId)
+          if (image.status !== 'ready') {
+            throw badRequest('Only ready images can be added to a sheet')
+          }
+        }),
+      )
+    }
+
     await repo.updateSheet(sub, sheetId, body)
     const item = await repo.getSheetForSub(sub, sheetId)
     return c.json({ sheet: sheetFromItem(item) })
