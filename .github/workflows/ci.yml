@@ -58,7 +58,7 @@ jobs:
     name: Terraform (plan dev, optional)
     runs-on: ubuntu-latest
     needs: terraform
-    if: ${{ vars.AWS_PLAN_ROLE_ARN != '' }}
+    if: ${{ vars.AWS_PLAN_ROLE_ARN != '' && vars.TF_STATE_BUCKET != '' }}
     permissions:
       id-token: write
       contents: read
@@ -97,7 +97,54 @@ jobs:
             -backend-config="encrypt=true" \
             -backend-config="use_lockfile=true"
       - name: Terraform plan (dev, read-only)
-        run: terraform -chdir=infra/envs/dev plan -input=false -no-color
+        # -lock=false: a plan must not write a state lock object (the optional
+        # OIDC role only needs read access to the state bucket).
+        run: terraform -chdir=infra/envs/dev plan -input=false -no-color -lock=false
+
+  # Optional, non-blocking Playwright E2E against a deployed stage.
+  #
+  # Gated on repository variables so forks/unconfigured repos skip it without
+  # AWS credentials. `secrets` cannot be used in a job-level `if`, so the run
+  # step also exits 0 when E2E_EMAIL/E2E_PASSWORD are absent. The job assumes
+  # an OIDC role only for the spec's optional Cognito cleanup (delete the
+  # registration user); the browser journey itself uses the public SPA.
+  #
+  # Required repository variables: E2E_ROLE_ARN, E2E_BASE_URL; optional
+  # E2E_USER_POOL_ID (cleanup), AWS_REGION. Required secrets: E2E_EMAIL,
+  # E2E_PASSWORD (the seeded account to log in with).
+  e2e:
+    name: E2E (Playwright, optional)
+    runs-on: ubuntu-latest
+    needs: node
+    if: ${{ vars.E2E_ROLE_ARN != '' && vars.E2E_BASE_URL != '' }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      E2E_USER_POOL_ID: ${{ vars.E2E_USER_POOL_ID }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.E2E_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
+      - name: Run Playwright E2E
+        run: |
+          if [ -z "${E2E_EMAIL}" ] || [ -z "${E2E_PASSWORD}" ]; then
+            echo "E2E_EMAIL/E2E_PASSWORD secrets are not configured — skipping E2E."
+            exit 0
+          fi
+          npm run e2e
 
   diagrams:
     name: Diagrams (staleness check)
