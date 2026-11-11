@@ -54,7 +54,7 @@ terraform -chdir=infra/envs/dev apply
 ```
 
 The SPA and API share that one origin (`/api/*` is proxied by CloudFront), so
-there is no CORS configuration or build-time API URL. Verification commands and
+there is no API CORS configuration (the media bucket has a CORS rule for presigned browser uploads) or build-time API URL. Verification commands and
 `E2E_BASE_URL` (run Playwright against the deployed site) are in
 [`docs/TESTING.md`](docs/TESTING.md).
 

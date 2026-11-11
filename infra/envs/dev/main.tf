@@ -27,6 +27,15 @@ locals {
   }
 }
 
+# The media-bucket CORS rule moved from the storage module to cloudfront
+# (Phase 5: the deployed SPA origin must be allowed). A `moved` block makes
+# Terraform update the existing singleton in place instead of racing a
+# create (cloudfront) against a destroy (storage).
+moved {
+  from = module.storage.aws_s3_bucket_cors_configuration.media
+  to   = module.cloudfront.aws_s3_bucket_cors_configuration.media
+}
+
 module "cognito" {
   source = "../../modules/cognito"
 

@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test'
 // E2E_BASE_URL runs the same journey against a deployed site (e.g. the dev
 // CloudFront URL from `terraform -chdir=infra/envs/dev output -raw web_url`);
 // without it the config keeps the local Vite dev server default.
-const DEPLOYED_BASE_URL = process.env.E2E_BASE_URL
+const DEPLOYED_BASE_URL = process.env.E2E_BASE_URL?.trim() || undefined
 const BASE_URL = DEPLOYED_BASE_URL ?? 'http://localhost:5173'
 
 export default defineConfig({

@@ -240,7 +240,7 @@ keys stay out-of-band in SSM SecureString.
   - `STRIPE_SECRET_PARAM_NAME` /
     `STRIPE_WEBHOOK_SECRET_PARAM_NAME` — SSM parameter names from
     `local.ssm_parameter_names` in `infra/envs/dev`.
-  - `WEB_ORIGIN` — SPA origin for the embedded Checkout `return_url`
+  - `WEB_ORIGIN` — SPA origin for the embedded Checkout `return_url` (dev default is empty until set to the CloudFront URL; see Phase 5)
     (dev: `http://localhost:5173`).
   - `CREDITS_PER_PURCHASE` — server-controlled credits per purchase
     (default `10`).
@@ -251,7 +251,7 @@ keys stay out-of-band in SSM SecureString.
   - `kms:Decrypt` on the `data.aws_kms_alias.ssm.target_key_arn` key ARN
     (KMS does not accept alias ARNs in an IAM `Resource`).
 - `infra/envs/dev/variables.tf` — `stripe_price_id` (default `""`),
-  `web_origin` (default `http://localhost:5173`), `credits_per_purchase`
+  `web_origin` (Phase 5 changed the dev default to `""`; set it to the CloudFront URL after the first apply — see the Phase 5 section), `credits_per_purchase`
   (default `10`). Pass the real test-mode price id with `-var` or a gitignored
   tfvars file; it is not a secret.
 - No new Lambda functions or resources: the existing `api` function serves the
@@ -272,7 +272,7 @@ default URL (PLAN 7.4, ADR-0003). No custom domain, ACM certificate, or Route
   - default `/*` → S3; managed `CachingOptimized`
     (`658327ea-f89d-4fab-a63d-7e88639e58f6`), compress, redirect-to-https.
   - `/api/*` → execute-api; managed `CachingDisabled`
-    (`4135ea2d-6df8-a3-9df3-4b5a84be39ad`) and
+    (`4135ea2d-6df8-44a3-9df3-4b5a84be39ad`) and
     `AllViewerExceptHostHeader` (`b689b0a8-53d0-40ab-baf2-68738e2966ac`), so
     Authorization/body/query strings reach the API but the viewer's `Host` does
     not replace execute-api's own host. All methods GET/HEAD/OPTIONS/PUT/POST/

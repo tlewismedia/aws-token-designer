@@ -21,7 +21,7 @@ data "aws_region" "current" {}
 # "AllViewerExceptHostHeader" one because execute-api must receive its own Host.
 locals {
   cache_policy_caching_optimized                      = "658327ea-f89d-4fab-a63d-7e88639e58f6"
-  cache_policy_caching_disabled                       = "4135ea2d-6df8-a3-9df3-4b5a84be39ad"
+  cache_policy_caching_disabled                       = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
   origin_request_policy_all_viewer_except_host_header = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
 
   media_allowed_origins = distinct(concat(
@@ -214,7 +214,7 @@ resource "aws_s3_bucket_policy" "web" {
 
 # Browser presigned PUTs go straight to S3, so media CORS must name the
 # deployed SPA origin. Moved here from the storage module (Phase 5) because it
-# needs the distribution domain; two aws_s3_bucket_cors_configuration resources
+# needs the distribution domain; the resource is moved from the storage module
 # for one bucket would fight over the singleton API. The one-time plan shows a
 # delete (storage) + create (here).
 resource "aws_s3_bucket_cors_configuration" "media" {
