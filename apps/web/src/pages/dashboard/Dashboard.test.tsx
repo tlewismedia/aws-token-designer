@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import DashboardPage from './DashboardPage'
+import Dashboard from './Dashboard'
 
-describe('DashboardPage', () => {
+describe('Dashboard', () => {
   it('renders the source under-construction placeholder', () => {
-    render(<DashboardPage />)
+    render(<Dashboard />)
 
     expect(
       screen.getByRole('heading', { name: 'Dashboard - Under Construction' }),

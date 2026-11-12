@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPrint, faTrash } from '@fortawesome/free-solid-svg-icons'
 import { DEFAULT_SHEET_NAME, type ImageWithUrls } from '@aws-token-designer/shared'
-import Button from '../../components/Button/Button'
+import Button from '../Button/Button'
 import {
   useSheets,
   useRemoveToken,
@@ -15,7 +15,7 @@ import {
   MAX_TOKENS,
 } from '../../hooks/useSheets'
 import { useImages } from '../../hooks/useImages'
-import TokenSheetToken from './TokenSheetToken'
+import TokenSheetToken from '../TokenSheetToken/TokenSheetToken'
 import './TokenSheet.css'
 
 function errorText(error: unknown): string {

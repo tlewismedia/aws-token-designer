@@ -6,11 +6,11 @@
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faUpload, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons'
-import Modal from '../../components/Modal'
-import ImageGallery from '../images/ImageGallery'
-import GenerateImageForm from '../images/GenerateImageForm'
-import UploadImageForm from '../images/UploadImageForm'
-import TokenSheet from './TokenSheet'
+import Modal from '../Modal/Modal'
+import ImageGallery from '../ImageGallery/ImageGallery'
+import GenerateImageForm from '../GenerateImageForm/GenerateImageForm'
+import UploadImageForm from '../UploadImageForm/UploadImageForm'
+import TokenSheet from '../TokenSheet/TokenSheet'
 import './SheetBuilder.css'
 
 export default function SheetBuilder() {

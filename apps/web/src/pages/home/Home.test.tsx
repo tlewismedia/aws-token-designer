@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '../../contexts/auth-context'
-import HomePage from './HomePage'
+import Home from './Home'
 
-vi.mock('../sheets/SheetBuilder', () => ({
+vi.mock('../../components/SheetBuilder/SheetBuilder', () => ({
   default: () => <p>builder-stub</p>,
 }))
 
@@ -32,7 +32,7 @@ function renderHome(
     <MemoryRouter initialEntries={[{ pathname: '/', state }]}>
       <AuthContext.Provider value={authValue(user)}>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<Home />} />
           <Route path="/register" element={<p>register-stub</p>} />
           <Route path="/login" element={<p>login-stub</p>} />
         </Routes>
@@ -46,7 +46,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('HomePage', () => {
+describe('Home', () => {
   it('renders the full promotion page for logged-out visitors', () => {
     renderHome()
 

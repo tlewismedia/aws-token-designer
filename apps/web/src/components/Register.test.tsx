@@ -2,9 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthContext, type AuthContextValue } from '../../contexts/auth-context'
-import { ApiError } from '../../lib/api'
-import RegisterPage from './RegisterPage'
+import { AuthContext, type AuthContextValue } from '../contexts/auth-context'
+import { ApiError } from '../lib/api'
+import Register from './Register'
 
 const signUpMock = vi.fn()
 const signInMock = vi.fn()
@@ -32,7 +32,7 @@ function renderRegister() {
   return render(
     <MemoryRouter initialEntries={['/register']}>
       <AuthContext.Provider value={authValue()}>
-        <RegisterPage />
+        <Register />
         <LocationProbe />
       </AuthContext.Provider>
     </MemoryRouter>,
@@ -44,7 +44,7 @@ beforeEach(() => {
   signInMock.mockReset()
 })
 
-describe('RegisterPage', () => {
+describe('Register', () => {
   it('keeps the confirm-password field and reports a mismatch inline', async () => {
     renderRegister()
 

@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import BuyCreditsPage from './BuyCreditsPage'
+import BuyCredits from './BuyCredits'
 
-describe('BuyCreditsPage', () => {
+describe('BuyCredits', () => {
   it('renders the source shell with a disabled checkout container', () => {
-    render(<BuyCreditsPage />)
+    render(<BuyCredits />)
 
     expect(screen.getByRole('heading', { name: 'Buy Credits' })).toBeInTheDocument()
 

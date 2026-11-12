@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Button from '../../components/Button/Button'
-import { useAuth } from '../../contexts/auth-context'
-import { ApiError } from '../../lib/api'
+import Button from './Button/Button'
+import { useAuth } from '../contexts/auth-context'
+import { ApiError } from '../lib/api'
 import './Register.css'
 
-export default function RegisterPage() {
+export default function Register() {
   const { signUp, signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')

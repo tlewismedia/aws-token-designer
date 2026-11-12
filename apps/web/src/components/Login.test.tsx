@@ -2,9 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthContext, type AuthContextValue } from '../../contexts/auth-context'
-import { ApiError } from '../../lib/api'
-import LoginPage from './LoginPage'
+import { AuthContext, type AuthContextValue } from '../contexts/auth-context'
+import { ApiError } from '../lib/api'
+import Login from './Login'
 
 const signInMock = vi.fn()
 
@@ -23,7 +23,7 @@ function renderLogin() {
     <MemoryRouter initialEntries={['/login']}>
       <AuthContext.Provider value={authValue()}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/" element={<p>home-page</p>} />
         </Routes>
       </AuthContext.Provider>
@@ -35,7 +35,7 @@ beforeEach(() => {
   signInMock.mockReset()
 })
 
-describe('LoginPage', () => {
+describe('Login', () => {
   it('shows an inline error for bad credentials (no alert)', async () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     signInMock.mockRejectedValue(

@@ -12,7 +12,7 @@ vi.mock('../../hooks/useCheckout', () => ({
 }))
 
 import { ApiError } from '../../lib/api'
-import ReturnPage from './ReturnPage'
+import Return from './Return'
 
 function query(overrides: Record<string, unknown> = {}) {
   return {
@@ -29,7 +29,7 @@ function query(overrides: Record<string, unknown> = {}) {
 function renderPage(search = '?session_id=cs_test_1') {
   return render(
     <MemoryRouter initialEntries={[`/return${search}`]}>
-      <ReturnPage />
+      <Return />
     </MemoryRouter>,
   )
 }
@@ -38,7 +38,7 @@ beforeEach(() => {
   mocks.useCheckoutStatus.mockReset()
 })
 
-describe('ReturnPage', () => {
+describe('Return', () => {
   it('shows the source success copy when fulfillment succeeded', () => {
     mocks.useCheckoutStatus.mockReturnValue(
       query({ data: { status: 'succeeded', creditsGranted: 10 } }),
