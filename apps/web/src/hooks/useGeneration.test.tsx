@@ -17,7 +17,7 @@ vi.mock('../contexts/auth-context', () => ({
   useAuth: () => ({ user: { sub: 'user-1' } }),
 }))
 
-import { generationErrorMessage, useGenerationJob } from './useGeneration'
+import { generationErrorInfo, useGenerationJob } from './useGeneration'
 
 const baseJob = {
   id: 'job-1',
@@ -119,9 +119,19 @@ describe('useGenerationJob', () => {
   })
 })
 
-describe('generationErrorMessage', () => {
-  it('explains provider content moderation separately from generic failure', () => {
-    expect(generationErrorMessage('GENERATION_MODERATED')).toMatch(/content filter/i)
-    expect(generationErrorMessage('GENERATION_FAILED')).toMatch(/failed/i)
+describe('generationErrorInfo', () => {
+  it('gives actionable copy for moderation and rate limits', () => {
+    const moderated = generationErrorInfo('GENERATION_MODERATED')
+    expect(moderated.title).toMatch(/blocked/i)
+    expect(moderated.message).toMatch(/content filter/i)
+    expect(moderated.hint).toMatch(/reword/i)
+
+    const limited = generationErrorInfo('RATE_LIMITED')
+    expect(limited.title).toMatch(/limit/i)
+    expect(limited.hint).toMatch(/midnight UTC/i)
+
+    const failed = generationErrorInfo('GENERATION_FAILED')
+    expect(failed.title).toMatch(/failed/i)
+    expect(failed.hint).toBeTruthy()
   })
 })

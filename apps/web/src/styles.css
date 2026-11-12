@@ -117,6 +117,34 @@
   font-size: 13px;
 }
 
+.error-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e3b3b8;
+  border-left: 4px solid #b02a37;
+  border-radius: 6px;
+  background: #fdf2f3;
+}
+
+.error-title {
+  color: #842029;
+  font-size: 15px;
+}
+
+.error-message {
+  margin: 0;
+  color: #5c1d23;
+  font-size: 14px;
+}
+
+.error-hint {
+  margin: 0;
+  color: #6c4a4d;
+  font-size: 13px;
+}
+
 .auth-alt {
   font-size: 13px;
   text-align: center;
