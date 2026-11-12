@@ -32,15 +32,15 @@ variable "media_allowed_origins" {
 }
 
 variable "stripe_price_id" {
-  description = "Non-secret Stripe price id for one credit purchase. Empty disables checkout (503 BILLING_DISABLED)."
+  description = "Non-secret Stripe price id for one credit purchase (test mode for the demo). Empty disables checkout (503 BILLING_DISABLED)."
   type        = string
-  default     = ""
+  default     = "price_1SKV9BRJneXS2FG6lEiXjYKH"
 }
 
 variable "web_origin" {
-  description = "SPA origin for the embedded Checkout return URL. Defaults to empty; after the CloudFront distribution exists set it to the web_url output (see infra/envs/prod/main.tf)."
+  description = "SPA origin for the Stripe Checkout return URL (the CloudFront web_url)."
   type        = string
-  default     = ""
+  default     = "https://dxijguqpiuxx7.cloudfront.net"
 }
 
 variable "credits_per_purchase" {
