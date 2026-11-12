@@ -376,37 +376,52 @@ statuses intact. See "Phase 5 additions" in docs/TERRAFORM.md.
 
 All alarms route to the SNS alerts topic and therefore to `alert_email`.
 
-**Dimension-accurate triggers.** `set-alarm-state` proves SNS routing but not
-that an alarm matches the real metric dimensions (a wrong dimension leaves the
-alarm in `INSUFFICIENT_DATA`). Publish real datapoints first, wait for the
-alarm, then reset. Replace the ids with the dev/prod outputs:
+**What can be forced (and what cannot).** CloudWatch rejects
+user-published datapoints in `AWS/*` namespaces (`The value AWS/ for parameter
+Namespace is invalid`), so native alarms cannot be metric-triggered with
+`put-metric-data`. The drill therefore uses:
 
-```sh
-STAGE=dev REGION=us-west-2
-API_ID=$(terraform -chdir="infra/envs/$STAGE" output -raw api_id)
-API_FN=$(terraform -chdir="infra/envs/$STAGE" output -raw api_lambda_name)
-WORKER_FN=$(terraform -chdir="infra/envs/$STAGE" output -raw generation_worker_name)
-TABLE=$(terraform -chdir="infra/envs/$STAGE" output -raw table_name)
+- **Custom metrics** (`TokenDesigner`) — publish a datapoint directly and wait
+  for the 5-minute period:
 
-aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/ApiGateway \
-  --metric-data "[{\"MetricName\":\"5xx\",\"Dimensions\":[{\"Name\":\"ApiId\",\"Value\":\"$API_ID\"},{\"Name\":\"Stage\",\"Value\":\"api\"}],\"Value\":1}]"
-aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/Lambda \
-  --metric-data "[{\"MetricName\":\"Errors\",\"Dimensions\":[{\"Name\":\"FunctionName\",\"Value\":\"$API_FN\"}],\"Value\":1}]"
-aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/Lambda \
-  --metric-data "[{\"MetricName\":\"Errors\",\"Dimensions\":[{\"Name\":\"FunctionName\",\"Value\":\"$WORKER_FN\"}],\"Value\":1}]"
-aws cloudwatch put-metric-data --region "$REGION" --namespace AWS/DynamoDB \
-  --metric-data "[{\"MetricName\":\"ReadThrottleEvents\",\"Dimensions\":[{\"Name\":\"TableName\",\"Value\":\"$TABLE\"}],\"Value\":1}]"
-aws cloudwatch put-metric-data --region "$REGION" --namespace TokenDesigner \
-  --metric-data "[{\"MetricName\":\"GenerationFailures\",\"Dimensions\":[{\"Name\":\"Stage\",\"Value\":\"$STAGE\"}],\"Value\":1}]"
+  ```sh
+  STAGE=dev REGION=us-west-2
+  aws cloudwatch put-metric-data --region "$REGION" --namespace TokenDesigner \
+    --metric-data "[{\"MetricName\":\"GenerationFailures\",\"Dimensions\":[{\"Name\":\"Stage\",\"Value\":\"$STAGE\"}],\"Value\":1}]"
+  ```
 
-# Wait for the 5-minute period to evaluate, then confirm ALARM and reset.
-aws cloudwatch describe-alarms --region "$REGION" \
-  --alarm-name-prefix "token-designer-$STAGE-" \
-  --query 'MetricAlarms[].[AlarmName,StateValue]' --output table
-```
+- **Real fault injection** for native metrics where it is safe. The drill used
+  40 concurrent `aws lambda invoke` calls against the worker to force
+  `AWS/Lambda Throttles` (the account limit is 10), and the
+  `generation-failures` alarm was triggered with the custom datapoint above.
+  Both reached `ALARM`.
+- **`set-alarm-state`** for the remaining native alarms: it proves SNS routing
+  and the subscriber path, but *not* the dimensions. Dimension correctness is
+  verified statically against the AWS metric schemas and, after real traffic,
+  with:
 
-If the state does not move, the dimensions are wrong (fix the alarm) — this is
-the check that catches dimension bugs.
+  ```sh
+  aws cloudwatch get-metric-statistics --region "$REGION" \
+    --namespace AWS/ApiGateway --metric-name 5xx \
+    --dimensions Name=ApiId,Value="$API_ID" Name=Stage,Value=api \
+    --start-time "$(date -u -v-15M +%FT%TZ)" --end-time "$(date -u +%FT%TZ)" \
+    --period 300 --statistics Sum
+  ```
+
+**Drill log — 2026-11-11 (dev)**
+
+| Alarm | Method | Result |
+|---|---|---|
+| `generation-failures` | real custom datapoint | ALARM → reset |
+| `worker-lambda-throttles` | 40 concurrent invokes | ALARM → reset |
+| `api-5xx`, `api-lambda-errors`, `api-lambda-throttles`, `dynamodb-read-throttle-events`, `estimated-ai-cost-daily`, `generation-count-daily` | `set-alarm-state` routing | ALARM observed → reset |
+| `dynamodb-write-throttle-events` | paired with the read alarm (same dimensions) | config verified |
+| SNS email delivery | `aws sns publish` test message | accepted (`MessageId` returned; subscription already confirmed) |
+| Budget notification | topic policy now grants Budgets publish; forcing a real budget breach needs spend or a temporary threshold change | policy verified, delivery-by-budget pending (backlog) |
+
+If a dimension is wrong, the alarm stays in `INSUFFICIENT_DATA`/`OK` and the
+custom-metric or fault-injection checks catch it.
+
 Trigger each one directly instead of waiting for a metric breach (CloudWatch
 sends the action on the `ALARM` transition):
 
@@ -497,6 +512,13 @@ aws cognito-idp admin-delete-user --user-pool-id "$(terraform -chdir=infra/envs/
 ```
 
 ## Rollback drill
+
+**Drill log — 2026-11-11 (dev web):** built the SPA from commit `c811255`
+(Phase 2 merge) in a temporary worktree, synced it to the dev bucket, verified
+the served `index.html` referenced `assets/index-iOZMJj0W.js` and returned 200,
+then re-ran `./scripts/deploy-web.sh dev` and verified the current asset hash
+(`assets/index-2rynzlVu.js`) was served again. Lambda/infra rollback uses a
+revert + apply (see the runbook).
 
 Rolling back the web build is the least invasive response; Lambda rollback
 rebuilds the previous commit against the same Terraform state. The full
