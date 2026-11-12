@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import Button from '../../components/Button/Button'
 import { useAuth } from '../../contexts/auth-context'
 import { ApiError } from '../../lib/api'
+import './Login.css'
 
 export default function LoginPage() {
   const { signIn } = useAuth()
@@ -30,36 +32,37 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-page">
-      <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
-        <h1>Sign in</h1>
-        {error && <p className="form-error">{error}</p>}
-        <label htmlFor="email">Email</label>
+    <div className="login-container">
+      <form className="login-form" onSubmit={(e) => void handleSubmit(e)}>
+        <h2>Login</h2>
         <input
-          id="email"
           type="email"
+          placeholder="Email"
+          aria-label="Email"
           autoComplete="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <label htmlFor="password">Password</label>
         <input
-          id="password"
           type="password"
+          placeholder="Password"
+          aria-label="Password"
           autoComplete="current-password"
           required
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-        <p className="auth-alt">
-          New here? <Link to="/register">Create an account</Link>
-        </p>
+        {error && (
+          <p className="login-error" role="alert">
+            {error}
+          </p>
+        )}
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Logging in…' : 'Login'}
+        </Button>
       </form>
-    </main>
+    </div>
   )
 }
