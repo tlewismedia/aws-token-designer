@@ -2,8 +2,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from './contexts/AuthContext'
+import { useAuth } from './contexts/auth-context'
 import ProtectedRoute from './components/ProtectedRoute'
-import Navbar from './components/Navbar'
+import Navbar from './components/Navbar/Navbar'
 import HomePage from './features/home/HomePage'
 import LoginPage from './features/auth/LoginPage'
 import RegisterPage from './features/auth/RegisterPage'
@@ -15,23 +16,33 @@ import './styles.css'
 
 const queryClient = createQueryClient()
 
+function AppContent() {
+  const { user } = useAuth()
+
+  return (
+    <div className="app-wrapper">
+      {user && <Navbar />}
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/buy-credits" element={<BuyCreditsPage />} />
+          <Route path="/return" element={<ReturnPage />} />
+        </Route>
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/buy-credits" element={<BuyCreditsPage />} />
-              <Route path="/return" element={<ReturnPage />} />
-            </Route>
-            <Route path="*" element={<HomePage />} />
-          </Routes>
+          <AppContent />
           {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
         </BrowserRouter>
       </AuthProvider>

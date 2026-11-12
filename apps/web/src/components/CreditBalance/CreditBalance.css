@@ -1,0 +1,72 @@
+.credit-balance-container {
+  display: flex;
+  align-items: center;
+  position: relative;
+  gap: 15px;
+  padding: 6px 10px;
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
+  cursor: default;
+}
+
+.credit-balance-container:hover {
+  background-color: #333;
+}
+
+.credit-balance-disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.credit-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-2px);
+  white-space: nowrap;
+  background-color: #1f1f1f;
+  color: #f2f2f2;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #3a3a3a;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 90ms ease-out,
+    transform 90ms ease-out;
+  z-index: 20;
+}
+
+.credit-balance-container:hover .credit-tooltip,
+.credit-balance-container:focus-visible .credit-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.credit-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.credit-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f2f2f2;
+}
+
+.credit-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f2f2f2;
+}
+
+.credit-message {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
