@@ -1,0 +1,29 @@
+/* Self-hosted webfonts (M7 UI parity).
+ *
+ * The source app loaded these families from Google Fonts. The deployed CSP is
+ * `font-src 'self'`, so the woff2 files are bundled from @fontsource instead —
+ * no external font network requests.
+ *
+ * Latin subsets only: the app's copy is English, and this keeps the bundle
+ * small. Weight/style coverage mirrors the source's font request.
+ */
+
+/* Lora: 400–700, roman + italic. */
+@import '@fontsource/lora/latin-400.css';
+@import '@fontsource/lora/latin-400-italic.css';
+@import '@fontsource/lora/latin-500.css';
+@import '@fontsource/lora/latin-500-italic.css';
+@import '@fontsource/lora/latin-600.css';
+@import '@fontsource/lora/latin-600-italic.css';
+@import '@fontsource/lora/latin-700.css';
+@import '@fontsource/lora/latin-700-italic.css';
+
+/* IM Fell English: regular + italic. */
+@import '@fontsource/im-fell-english/latin-400.css';
+@import '@fontsource/im-fell-english/latin-400-italic.css';
+
+/* IM Fell DW Pica SC: regular (logo). */
+@import '@fontsource/im-fell-dw-pica-sc/latin-400.css';
+
+/* Just Another Hand: regular (gallery captions, later ticket). */
+@import '@fontsource/just-another-hand/latin-400.css';

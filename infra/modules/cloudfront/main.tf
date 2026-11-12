@@ -30,12 +30,14 @@ locals {
   ))
 
   # CSP for the current app: Vite emits same-origin module scripts/styles;
+  # fonts are self-hosted woff2 assets bundled by Vite (no Google Fonts);
   # Cognito is the only cross-origin API; media images are presigned S3 URLs;
   # js.stripe.com is reserved for the later embedded checkout (frame-src).
   content_security_policy = join("; ", [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     "img-src 'self' data: https://*.amazonaws.com",
     "connect-src 'self' https://cognito-idp.${data.aws_region.current.name}.amazonaws.com https://*.amazonaws.com https://api.stripe.com",
     "frame-src https://js.stripe.com",

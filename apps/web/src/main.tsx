@@ -1,5 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import './fonts.css'
+import './App.css'
 import { configureAmplify } from './lib/amplify'
 import App from './App'
 

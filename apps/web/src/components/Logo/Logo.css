@@ -1,0 +1,58 @@
+.logo {
+  font-family: "IM Fell DW Pica SC", serif;
+  font-weight: 400;
+  font-style: normal;
+  /* letter-spacing: 0.04em; */
+  /* color: white; */
+  font-size: 6rem;
+  line-height: 0.8;
+  margin-bottom: 1rem;
+  /* text-shadow: 0 0 1px black, 0 0 1px black, 0 0 1px black, 0 0 1px black,
+    0 0 1px black;
+  -webkit-text-stroke: 6px black;
+  paint-order: stroke fill; */
+  position: relative;
+}
+
+.logo--large {
+  font-size: 6rem;
+  line-height: 0.8;
+  margin-bottom: 1rem;
+  text-shadow: 0 0 80px rgba(0, 0, 0, 0.105);
+}
+
+.logo--large .logo-beta {
+  font-size: 0.1em;
+  border: 2px solid black;
+  position: absolute;
+  bottom: 30px;
+  right: -35px;
+}
+
+.logo--small {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 0;
+  -webkit-text-stroke: none;
+}
+
+.logo-beta {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: "Lora", serif;
+  font-size: 0.3em;
+  font-weight: 700;
+  line-height: 1;
+  color: #000;
+  /* background: #fff; */
+  border-radius: 8px;
+  -webkit-text-stroke: 0;
+  margin-left: -6px;
+  letter-spacing: normal;
+}
+
+@media (max-width: 700px) {
+  .logo--small {
+    font-size: 1.7rem;
+  }
+}

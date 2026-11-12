@@ -14,6 +14,13 @@
   },
   "dependencies": {
     "@aws-token-designer/shared": "0.1.0",
+    "@fontsource/im-fell-dw-pica-sc": "^5.3.0",
+    "@fontsource/im-fell-english": "^5.3.0",
+    "@fontsource/just-another-hand": "^5.3.0",
+    "@fontsource/lora": "^5.3.0",
+    "@fortawesome/fontawesome-svg-core": "^7.3.1",
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
+    "@fortawesome/react-fontawesome": "^3.5.0",
     "@tanstack/react-query": "^5.107.1",
     "aws-amplify": "^6.22.2",
     "react": "^19.3.1",
