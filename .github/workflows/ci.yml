@@ -73,7 +73,7 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
       - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ vars.TF_STATE_REGION || 'us-west-2' }}
@@ -134,7 +134,7 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.E2E_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
