@@ -278,7 +278,7 @@ The drill is successful when both deploys return 200, the SPA loads, and
 
 ## Alarm drill
 
-Use the dimension-accurate `put-metric-data` triggers in
+Note: CloudWatch rejects `put-metric-data` for `AWS/*` namespaces. Use custom-metric datapoints or real fault injection for native alarms, then `set-alarm-state` for routing. Full method and the 2026-11-11 drill log are in
 [`docs/TESTING.md`](TESTING.md#alarm-and-budget-drill-phase-6) first, then
 `set-alarm-state` only to confirm SNS routing. Publishing a real datapoint is
 what proves the alarm's dimensions (ApiId + `Stage=api`, FunctionName,
