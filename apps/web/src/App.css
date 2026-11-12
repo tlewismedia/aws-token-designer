@@ -140,9 +140,6 @@ body {
   font-optical-sizing: auto;
   font-weight: 400;
   font-style: normal;
-  /* The source app takes its full height from `.app-wrapper`; until the layout
-     ticket applies that wrapper, keep the parchment body viewport-tall. */
-  min-height: 100vh;
   background-color: #e6e1d9;
   background-image: url("./images/tiles_export.jpg");
   background-repeat: repeat;
@@ -188,14 +185,6 @@ ul {
   height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
-  position: relative;
-  z-index: 1;
-}
-
-/* The source app lifts `.app-wrapper` above the body vignette. The current app
-   is not wrapped yet (the navbar/layout ticket does that), so lift the React
-   root instead to keep content out from under the fixed overlay. */
-#root {
   position: relative;
   z-index: 1;
 }

@@ -10,32 +10,6 @@
   box-sizing: border-box;
 }
 
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.navbar-brand {
-  font-weight: 700;
-  text-decoration: none;
-  color: inherit;
-}
-
-.navbar-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.credits {
-  font-weight: 600;
-  color: #2d6a4f;
-}
-
 .btn {
   padding: 8px 16px;
   border: 1px solid #333;
@@ -77,26 +51,6 @@
   color: #666;
 }
 
-/* Auth pages */
-
-.auth-page {
-  display: flex;
-  justify-content: center;
-  padding: 40px 16px;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 320px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 24px;
-}
-
-.auth-form input,
 .form input,
 .form select,
 .form textarea {
@@ -143,33 +97,6 @@
   margin: 0;
   color: #6c4a4d;
   font-size: 13px;
-}
-
-.auth-alt {
-  font-size: 13px;
-  text-align: center;
-  margin: 8px 0 0;
-}
-
-/* Marketing */
-
-.marketing {
-  max-width: 640px;
-  margin: 40px auto;
-  padding: 0 16px;
-}
-
-.tagline {
-  font-size: 18px;
-  color: #444;
-}
-
-.marketing-list {
-  line-height: 1.8;
-}
-
-.marketing-cta {
-  font-weight: 600;
 }
 
 /* Sheet builder */
@@ -425,7 +352,8 @@
   .modal-backdrop,
   .loading,
   .marketing,
-  .auth-page,
+  .login-container,
+  .register-container,
   .placeholder-page {
     display: none !important;
   }

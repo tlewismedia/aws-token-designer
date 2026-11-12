@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import Button from '../../components/Button/Button'
 import { useAuth } from '../../contexts/auth-context'
 import { ApiError } from '../../lib/api'
+import './Register.css'
 
 export default function RegisterPage() {
   const { signUp, signIn } = useAuth()
@@ -24,7 +26,10 @@ export default function RegisterPage() {
       // Auto-confirm is enabled for the demo; sign in right after.
       await signUp(email, password)
       await signIn(email, password)
-      navigate('/', { replace: true })
+      navigate('/', {
+        replace: true,
+        state: { registrationSuccess: true },
+      })
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : 'Could not create the account. Try again.',
@@ -35,45 +40,46 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="auth-page">
-      <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
-        <h1>Create your account</h1>
-        {error && <p className="form-error">{error}</p>}
-        <label htmlFor="email">Email</label>
+    <div className="register-container">
+      <form className="register-form" onSubmit={(e) => void handleSubmit(e)}>
+        <h2>Register</h2>
         <input
-          id="email"
           type="email"
+          placeholder="Email"
+          aria-label="Email"
           autoComplete="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <label htmlFor="password">Password</label>
         <input
-          id="password"
           type="password"
+          placeholder="Password"
+          aria-label="Password"
           autoComplete="new-password"
           required
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <label htmlFor="confirm">Confirm password</label>
         <input
-          id="confirm"
           type="password"
+          placeholder="Confirm password"
+          aria-label="Confirm password"
           autoComplete="new-password"
           required
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Create account'}
-        </button>
-        <p className="auth-alt">
-          Already have an account? <Link to="/login">Sign in</Link>
-        </p>
+        {error && (
+          <p className="register-error" role="alert">
+            {error}
+          </p>
+        )}
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Registering…' : 'Register'}
+        </Button>
       </form>
-    </main>
+    </div>
   )
 }

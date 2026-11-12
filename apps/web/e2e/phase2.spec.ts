@@ -84,7 +84,7 @@ async function signIn(page: Page): Promise<void> {
   await page.goto('/login')
   await page.getByLabel('Email').fill(E2E_EMAIL)
   await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.getByRole('button', { name: 'Login', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('heading', { name: 'Token Sheet' })).toBeVisible()
 }
@@ -130,15 +130,15 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // 1. Logged-out marketing page, protected route redirect.
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'AWS Token Designer' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('navigation')).toHaveCount(0)
 
     await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/login$/)
-    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible()
 
     // 2. Login as the seeded dev user; navbar credits come from GET /me.
     await signIn(page)
-    await expect(page.getByText(/^\d+ credits$/)).toBeVisible()
+    await expect(page.locator('.credit-amount')).toHaveText(/^\d+$/)
 
     // Make the run idempotent: empty the sheet and delete images left behind
     // by a previous failed run (unique prefix), without assuming a pristine
@@ -220,10 +220,11 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await expect(figure).toHaveCount(0)
 
     // 9. Logout returns to the marketing page.
-    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await page.getByRole('menuitem', { name: 'Logout' }).click()
     await expect(page.getByRole('heading', { name: 'AWS Token Designer' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible()
-    await expect(page.getByText(/^\d+ credits$/)).toHaveCount(0)
+    await expect(page.getByRole('navigation')).toHaveCount(0)
+    await expect(page.locator('.credit-amount')).toHaveCount(0)
   })
 
   test('registration auto-confirms and lands in the builder', async ({ page }) => {
@@ -232,21 +233,23 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     createdEmails.push(email)
 
     await page.goto('/register')
-    await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Register' })).toBeVisible()
     await page.getByLabel('Email').fill(email)
     await page.getByLabel('Password', { exact: true }).fill(password)
     await page.getByLabel('Confirm password').fill(password)
-    await page.getByRole('button', { name: 'Create account' }).click()
+    await page.getByRole('button', { name: 'Register', exact: true }).click()
 
     // The pre-sign-up trigger auto-confirms, so signUp + signIn land on `/`
     // with the lazily bootstrapped profile (10 credits + default sheet).
     await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByText('Registration successful.')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Token Sheet' })).toBeVisible({
       timeout: 60_000,
     })
-    await expect(page.getByText(/^\d+ credits$/)).toHaveText('10 credits', { timeout: 60_000 })
+    await expect(page.locator('.credit-amount')).toHaveText('10', { timeout: 60_000 })
 
-    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await page.getByRole('menuitem', { name: 'Logout' }).click()
     await expect(page.getByRole('heading', { name: 'AWS Token Designer' })).toBeVisible()
   })
 })
