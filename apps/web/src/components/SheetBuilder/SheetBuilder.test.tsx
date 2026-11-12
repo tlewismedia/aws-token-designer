@@ -5,19 +5,19 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../images/ImageGallery', () => ({
+vi.mock('../ImageGallery/ImageGallery', () => ({
   default: () => <p>gallery-stub</p>,
 }))
 
-vi.mock('./TokenSheet', () => ({
+vi.mock('../TokenSheet/TokenSheet', () => ({
   default: () => <p>sheet-stub</p>,
 }))
 
-vi.mock('../images/GenerateImageForm', () => ({
+vi.mock('../GenerateImageForm/GenerateImageForm', () => ({
   default: () => <p>generate-form-stub</p>,
 }))
 
-vi.mock('../images/UploadImageForm', () => ({
+vi.mock('../UploadImageForm/UploadImageForm', () => ({
   default: () => <p>upload-form-stub</p>,
 }))
 

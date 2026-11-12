@@ -16,7 +16,7 @@ vi.mock('./hooks/useMe', () => ({
   useMe: () => ({ data: { profile: { credits: 12 }, sheets: [] }, isPending: false }),
 }))
 
-vi.mock('./features/sheets/SheetBuilder', () => ({
+vi.mock('./components/SheetBuilder/SheetBuilder', () => ({
   default: () => <p>builder-stub</p>,
 }))
 

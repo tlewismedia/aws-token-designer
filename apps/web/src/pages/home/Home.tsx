@@ -5,10 +5,10 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/auth-context'
 import Promotion from '../../components/Promotion/Promotion'
-import SheetBuilder from '../sheets/SheetBuilder'
+import SheetBuilder from '../../components/SheetBuilder/SheetBuilder'
 import './Home.css'
 
-export default function HomePage() {
+export default function Home() {
   const { user, loading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()

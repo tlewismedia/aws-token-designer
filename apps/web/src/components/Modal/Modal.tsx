@@ -3,7 +3,7 @@
 // dialog semantics and locks body scroll while it is open.
 
 import { useEffect, useRef, type ReactNode } from 'react'
-import Button from './Button/Button'
+import Button from '../Button/Button'
 import './Modal.css'
 
 export interface ModalProps {

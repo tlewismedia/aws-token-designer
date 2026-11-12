@@ -3,7 +3,7 @@
 
 import './BuyCredits.css'
 
-export default function BuyCreditsPage() {
+export default function BuyCredits() {
   return (
     <div className="buy-credits-page">
       <h1>Buy Credits</h1>

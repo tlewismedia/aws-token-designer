@@ -37,7 +37,7 @@ function RefreshButton({
   )
 }
 
-export default function ReturnPage() {
+export default function Return() {
   const [params] = useSearchParams()
   const sessionId = params.get('session_id')
   const query = useCheckoutStatus(sessionId)

@@ -5,12 +5,12 @@ import { AuthProvider } from './contexts/AuthContext'
 import { useAuth } from './contexts/auth-context'
 import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar/Navbar'
-import HomePage from './features/home/HomePage'
-import LoginPage from './features/auth/LoginPage'
-import RegisterPage from './features/auth/RegisterPage'
-import DashboardPage from './features/billing/DashboardPage'
-import BuyCreditsPage from './features/billing/BuyCreditsPage'
-import ReturnPage from './features/billing/ReturnPage'
+import Home from './pages/home/Home'
+import Login from './components/Login'
+import Register from './components/Register'
+import Dashboard from './pages/dashboard/Dashboard'
+import BuyCredits from './pages/buyCredits/BuyCredits'
+import Return from './pages/return/Return'
 import { createQueryClient } from './lib/query-client'
 import './styles.css'
 
@@ -23,15 +23,15 @@ function AppContent() {
     <div className="app-wrapper">
       {user && <Navbar />}
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/buy-credits" element={<BuyCreditsPage />} />
-          <Route path="/return" element={<ReturnPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/buy-credits" element={<BuyCredits />} />
+          <Route path="/return" element={<Return />} />
         </Route>
-        <Route path="*" element={<HomePage />} />
+        <Route path="*" element={<Home />} />
       </Routes>
     </div>
   )
