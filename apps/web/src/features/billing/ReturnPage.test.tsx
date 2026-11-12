@@ -39,14 +39,17 @@ beforeEach(() => {
 })
 
 describe('ReturnPage', () => {
-  it('shows the credits granted when fulfillment succeeded', () => {
+  it('shows the source success copy when fulfillment succeeded', () => {
     mocks.useCheckoutStatus.mockReturnValue(
       query({ data: { status: 'succeeded', creditsGranted: 10 } }),
     )
     renderPage()
 
-    expect(screen.getByText(/Payment confirmed/)).toBeInTheDocument()
-    expect(screen.getByText(/10 credits added/)).toBeInTheDocument()
+    expect(screen.getByText(/Payment received and credits have been applied/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'orders@example.com' })).toHaveAttribute(
+      'href',
+      'mailto:orders@example.com',
+    )
   })
 
   it('shows a pending state and refetches on Refresh', () => {
@@ -56,7 +59,7 @@ describe('ReturnPage', () => {
     )
     renderPage()
 
-    expect(screen.getByText(/Credits are being applied/)).toBeInTheDocument()
+    expect(screen.getByText(/still processing your credits/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     expect(refetch).toHaveBeenCalledTimes(1)
   })
@@ -67,7 +70,9 @@ describe('ReturnPage', () => {
     )
     renderPage()
 
-    expect(screen.getByText(/could not apply the credits/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/could not apply your credits automatically/),
+    ).toBeInTheDocument()
   })
 
   it('treats a 403 as an unknown order, never showing payment data', () => {
@@ -77,7 +82,7 @@ describe('ReturnPage', () => {
     renderPage()
 
     expect(screen.getByText(/could not find that order/)).toBeInTheDocument()
-    expect(screen.queryByText(/credits added/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/credits have been applied/)).not.toBeInTheDocument()
   })
 
   it('treats a 404 as an unknown order', () => {
@@ -94,6 +99,7 @@ describe('ReturnPage', () => {
     renderPage('')
 
     expect(screen.getByText(/needs a checkout session id/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'orders@example.com' })).toBeInTheDocument()
   })
 
   it('shows a retryable error for an unexpected failure', () => {
@@ -110,6 +116,6 @@ describe('ReturnPage', () => {
     mocks.useCheckoutStatus.mockReturnValue(query({ isPending: true }))
     renderPage()
 
-    expect(screen.getByText(/Checking order status/)).toBeInTheDocument()
+    expect(screen.getByText(/Checking payment status/)).toBeInTheDocument()
   })
 })

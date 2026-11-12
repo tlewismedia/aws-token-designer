@@ -1,11 +1,16 @@
-// Buy credits — purchase UI stays disabled in v1 (Stripe checkout lands in
-// Phase 4). The route is protected so the wiring is ready.
+// Buy credits: the source page shell with the checkout container disabled in
+// v1. No Stripe.js, publishable key, or checkout network request is made.
+
+import './BuyCredits.css'
 
 export default function BuyCreditsPage() {
   return (
-    <main className="placeholder-page">
+    <div className="buy-credits-page">
       <h1>Buy Credits</h1>
-      <p>Credit purchases are not enabled yet — they arrive in Phase 4.</p>
-    </main>
+
+      <div id="checkout-container">
+        <p className="checkout-disabled">Credit purchasing is coming soon.</p>
+      </div>
+    </div>
   )
 }

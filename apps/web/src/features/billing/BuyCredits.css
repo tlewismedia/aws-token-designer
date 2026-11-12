@@ -1,0 +1,21 @@
+/* Buy Credits page shell (source BuyCredits.css). */
+
+.buy-credits-page {
+  width: 100%;
+  max-width: 640px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.buy-credits-page h1 {
+  color: #333;
+}
+
+.checkout-disabled {
+  margin: 0;
+  padding: 24px;
+  border: 1px dashed #bbb;
+  border-radius: 6px;
+  color: #666;
+  text-align: center;
+}
