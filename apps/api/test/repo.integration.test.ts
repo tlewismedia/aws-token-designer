@@ -151,9 +151,18 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
     })
 
     it('lists images newest first', async () => {
-      const first = ulid()
-      const second = ulid()
-      for (const id of [first, second]) {
+      // Give the two rows distinct timestamps: when both shared one millisecond
+      // the test only passed by accident of SK ordering and failed in CI. Keep
+      // the newest-first assertion and check the timestamps as well as the ids.
+      const olderId = ulid()
+      const newerId = ulid()
+      const olderCreatedAt = '2026-01-01T00:00:00.000Z'
+      const newerCreatedAt = '2026-01-01T00:00:01.000Z'
+      const rows = [
+        { id: olderId, createdAt: olderCreatedAt },
+        { id: newerId, createdAt: newerCreatedAt },
+      ] as const
+      for (const { id, createdAt } of rows) {
         await repo.putImage(
           imageFromItem({
             PK: 'USER#user-a',
@@ -164,13 +173,20 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
             fullKey: `users/user-a/images/${id}/full.png`,
             thumbKey: `users/user-a/images/${id}/thumb.png`,
             contentType: 'image/png',
-            createdAt: '2026-01-01T00:00:00.000Z',
+            createdAt,
           }),
         )
       }
       const images = await repo.listImages('user-a')
       const ids = images.map((i) => i.id)
-      expect(ids.indexOf(second)).toBeLessThan(ids.indexOf(first))
+      expect(ids.indexOf(newerId)).toBeLessThan(ids.indexOf(olderId))
+
+      const returned = images.filter((image) => image.id === olderId || image.id === newerId)
+      expect(returned.map((image) => image.id)).toEqual([newerId, olderId])
+      expect(returned.map((image) => image.createdAt)).toEqual([
+        newerCreatedAt,
+        olderCreatedAt,
+      ])
     })
   })
 
