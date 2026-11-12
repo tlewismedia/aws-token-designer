@@ -1,0 +1,40 @@
+.button {
+  background-color: #000000;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    transform 0.05s ease;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  /* background-color: #218838; */
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button--small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.button--medium {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.button--large {
+  padding: 12px 20px;
+  font-size: 16px;
+}
