@@ -151,9 +151,22 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
     })
 
     it('lists images newest first', async () => {
-      const first = ulid()
-      const second = ulid()
-      for (const id of [first, second]) {
+      // listImages orders by SK descending, and each SK embeds the image ULID.
+      // Generate deterministic ULIDs at distinct times so the lexical order is
+      // guaranteed (back-to-back calls in the same millisecond can be
+      // non-monotonic across a random-byte boundary). Keep the newest-first
+      // assertion and also check the stored createdAt values.
+      const olderCreatedAtMs = Date.UTC(2026, 0, 1)
+      const newerCreatedAtMs = olderCreatedAtMs + 1000
+      const olderId = ulid(olderCreatedAtMs)
+      const newerId = ulid(newerCreatedAtMs)
+      const olderCreatedAt = new Date(olderCreatedAtMs).toISOString()
+      const newerCreatedAt = new Date(newerCreatedAtMs).toISOString()
+      const rows = [
+        { id: olderId, createdAt: olderCreatedAt },
+        { id: newerId, createdAt: newerCreatedAt },
+      ] as const
+      for (const { id, createdAt } of rows) {
         await repo.putImage(
           imageFromItem({
             PK: 'USER#user-a',
@@ -164,13 +177,20 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
             fullKey: `users/user-a/images/${id}/full.png`,
             thumbKey: `users/user-a/images/${id}/thumb.png`,
             contentType: 'image/png',
-            createdAt: '2026-01-01T00:00:00.000Z',
+            createdAt,
           }),
         )
       }
       const images = await repo.listImages('user-a')
       const ids = images.map((i) => i.id)
-      expect(ids.indexOf(second)).toBeLessThan(ids.indexOf(first))
+      expect(ids.indexOf(newerId)).toBeLessThan(ids.indexOf(olderId))
+
+      const returned = images.filter((image) => image.id === olderId || image.id === newerId)
+      expect(returned.map((image) => image.id)).toEqual([newerId, olderId])
+      expect(returned.map((image) => image.createdAt)).toEqual([
+        newerCreatedAt,
+        olderCreatedAt,
+      ])
     })
   })
 

@@ -50,7 +50,7 @@ describe('HomePage', () => {
   it('renders the full promotion page for logged-out visitors', () => {
     renderHome()
 
-    expect(screen.getByText(/Token Shoppe/)).toBeInTheDocument()
+    expect(screen.getByText(/Token Shoppe/)).toHaveTextContent('Token Shoppe beta')
     expect(
       screen.getByText(/fastest, easiest way to create game tokens/i),
     ).toBeInTheDocument()

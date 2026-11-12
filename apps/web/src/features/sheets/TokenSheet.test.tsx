@@ -99,9 +99,12 @@ describe('TokenSheet', () => {
     expect(mocks.removeToken).toHaveBeenCalledWith(1)
   })
 
-  it('renders a 7×9 grid with empty circles for the unused cells', () => {
+  it('renders the printable wrapper around a full 7×9 grid (63 cells)', () => {
     const { container } = render(<TokenSheet />)
 
+    // `.printable` is the element the global print CSS sizes to 7.5in × 10in
+    // and makes visible while hiding the rest of the app.
+    expect(container.querySelector('.printable .image-grid')).not.toBeNull()
     expect(container.querySelectorAll('.image-grid .token')).toHaveLength(2)
     expect(container.querySelectorAll('.image-grid .empty-token')).toHaveLength(61)
   })

@@ -1,7 +1,7 @@
 # Requirements — AWS Token Designer
 
 > Extracted from `docs/PLAN.md` §5 (v1.0, 2026-11-09). The plan is the
-> source of truth; this file is the testable index. Last synced: 2026-11-10.
+> source of truth; this file is the testable index. Last synced: 2026-11-12.
 
 ## Functional Requirements
 
@@ -10,8 +10,8 @@
 | FR-1 | Register, login, logout with email/password | Cognito user created; session persists; logout clears session and query cache |
 | FR-2 | Show user profile and credit balance | Navbar shows credits from `GET /api/me` |
 | FR-3 | Create default sheet on first login | Profile bootstrap creates `PROFILE` + one `SHEET` idempotently |
-| FR-4 | Generate an image from name, description, style, negative prompt | Job created; image appears in gallery after polling |
-| FR-5 | Upload an image via drag/drop or file picker | Max 10 MB; image types only; thumbnail created; appears in gallery |
+| FR-4 | Generate an image from name, description, style, negative prompt | Source-parity form; job created and polled; image appears in the gallery; moderation/rate-limit errors shown safely |
+| FR-5 | Upload an image via drag/drop or file picker | Source-parity form; max 10 MB; PNG/JPEG/WebP/GIF only; EXIF stripped, thumbnail created, appears in gallery |
 | FR-6 | List generated/uploaded images with thumbnails | Gallery loads presigned thumb URLs |
 | FR-7 | Add an image to the latest sheet | Max 63 tokens; duplicate adds allowed as in source |
 | FR-8 | Remove a token from the sheet | Removes by index; sheet updates |
@@ -35,7 +35,7 @@
 | NFR-7 | Maintainability | TypeScript strict; shared zod schemas; unit + integration + E2E tests |
 | NFR-8 | Accessibility | WCAG 2.1 AA for new/modified UI; preserve current baseline |
 | NFR-9 | Data retention | Images retained until user deletes; no PII beyond email |
-| NFR-10 | Privacy | No analytics/tracking; no third-party scripts beyond Stripe.js |
+| NFR-10 | Privacy | No analytics/tracking; no third-party scripts (Stripe.js is not loaded while purchases are disabled) |
 
 ## Out of scope (v1)
 

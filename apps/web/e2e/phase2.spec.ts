@@ -124,6 +124,22 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
       }
     })
 
+    // The port self-hosts fonts and keeps purchases disabled, so the browser
+    // must never request Google Fonts or Stripe.
+    const externalFontRequests: string[] = []
+    const stripeRequests: string[] = []
+    page.on('request', (request) => {
+      const url = request.url()
+      if (/fonts\.(googleapis|gstatic)\.com/.test(url)) externalFontRequests.push(url)
+      if (/api\.stripe\.com|js\.stripe\.com/.test(url)) stripeRequests.push(url)
+      if (
+        request.method() === 'POST' &&
+        new URL(url).pathname === '/api/checkout/session'
+      ) {
+        stripeRequests.push(url)
+      }
+    })
+
     // 1. Logged-out promotion page, protected route redirect.
     await page.goto('/')
     await expect(page.getByText(/fastest, easiest way to create game tokens/i)).toBeVisible()
@@ -198,6 +214,21 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await printButton.click()
     await expect.poll(() => page.evaluate(() => window.__e2ePrintCalls ?? 0)).toBe(1)
 
+    // The print stylesheet sizes `.printable` to 7.5in × 10in (720 × 960 CSS
+    // px), keeps all 63 cells, and hides the navbar/library/sheet chrome.
+    await page.emulateMedia({ media: 'print' })
+    const printableBox = await page.locator('.printable').boundingBox()
+    expect(Math.round(printableBox?.width ?? 0)).toBe(720)
+    expect(Math.round(printableBox?.height ?? 0)).toBe(960)
+    await expect(page.locator('.image-grid .token, .image-grid .empty-token')).toHaveCount(63)
+    const visibility = (selector: string) =>
+      page.locator(selector).evaluate((element) => getComputedStyle(element).visibility)
+    expect(await visibility('.navbar')).toBe('hidden')
+    expect(await visibility('.library')).toBe('hidden')
+    expect(await visibility('.sheet-header')).toBe('hidden')
+    expect(await visibility('.printable')).toBe('visible')
+    await page.emulateMedia({ media: 'screen' })
+
     // 6. Remove the token by clicking its ×; the count falls.
     const removed = waitForApi(page, 'DELETE', '/sheets/')
     await page.getByRole('button', { name: 'Remove token 1' }).click()
@@ -226,12 +257,26 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await deleted
     await expect(figure).toHaveCount(0)
 
-    // 9. Logout returns to the promotion page.
+    // 9. Buy Credits is inert: source page shell, no checkout request, and no
+    // Stripe.js or direct Stripe API traffic.
+    const stripeRequestsBefore = stripeRequests.length
+    await page.goto('/buy-credits')
+    await expect(page.getByRole('heading', { name: 'Buy Credits' })).toBeVisible()
+    await expect(page.getByText('Credit purchasing is coming soon.')).toBeVisible()
+    await expect(page.locator('#checkout-container button')).toHaveCount(0)
+    expect(stripeRequests).toHaveLength(stripeRequestsBefore)
+
+    // 10. Logout returns to the promotion page.
+    await page.goto('/')
+    await expect(page.locator('.image-grid')).toBeVisible({ timeout: 60_000 })
     await page.getByRole('button', { name: 'Account menu' }).click()
     await page.getByRole('menuitem', { name: 'Logout' }).click()
     await expect(page.getByText(/fastest, easiest way to create game tokens/i)).toBeVisible()
     await expect(page.getByRole('navigation')).toHaveCount(0)
     await expect(page.locator('.credit-amount')).toHaveCount(0)
+
+    expect(externalFontRequests).toEqual([])
+    expect(stripeRequests).toEqual([])
   })
 
   test('registration auto-confirms and lands in the builder', async ({ page }) => {

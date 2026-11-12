@@ -50,7 +50,7 @@ describe('App shell', () => {
     render(<App />)
 
     const nav = await screen.findByRole('navigation')
-    expect(nav).toHaveTextContent('Token Shoppe')
+    expect(nav).toHaveTextContent('Token Shoppe beta')
     expect(nav).toHaveTextContent('12')
     expect(screen.getByText('builder-stub')).toBeInTheDocument()
   })

@@ -2,7 +2,7 @@
 
 > Extracted from `docs/PLAN.md` §§6–7, 10 (v1.0, 2026-11-09). Living log:
 > update this file when risks change or issues/dependencies are added.
-> Last synced: 2026-11-11 (Phase 6).
+> Last synced: 2026-11-12 (M7 UI parity).
 
 ## Risks
 
@@ -25,6 +25,9 @@ accepted with an alarm/check; **Open** = action still needed.
 | Account Lambda concurrency limit is 10 | High | Medium | Both functions run unreserved; raise quota then set reservations (PLAN §7.6). | Open (external quota) |
 | Missing Stability/Stripe SecureStrings | High | Medium | Deployable failure paths verified (`GENERATION_DISABLED`, `503 BILLING_DISABLED`); operator must create the parameters (backlog #29/#34). | Open (operator) |
 | Cost Anomaly Detection quota | Low | Low | Account already has a DIMENSIONAL monitor; a second is rejected. Budget is the primary guardrail. | Monitored |
+| Print layout drift from the source sheet | Low | Medium | Source print CSS is kept (7.5in × 10in, 63-cell grid, hidden chrome). Playwright asserts the print-media geometry/chrome when the dev E2E runs; the manual print preview check is in `docs/TESTING.md`. | Monitored |
+| CSP blocks or leaks font/billing origins | Low | Medium | Fonts are self-hosted (`@fontsource`) and CSP is `font-src 'self'`. `connect-src`/`frame-src` still reserve Stripe origins for a future purchase UI; `/buy-credits` makes no Stripe or checkout request. Re-check response headers after each deploy. | Monitored |
+| Source-parity UI inherits weak a11y patterns | Medium | Medium | Port adds `aria-label`s, dialog semantics/focus return, and inline auth errors, but overlay actions are still hover-revealed and contrast is not automated. NFR-8 keeps the source baseline; a full WCAG 2.1 AA pass is follow-up work if the demo is promoted. | Monitored |
 
 ## Assumptions
 
@@ -53,6 +56,7 @@ accepted with an alarm/check; **Open** = action still needed.
 | 2026-11-11 | Phase 6: no Stability AI SecureString exists, so live generation cannot succeed. The failure path is verified; success needs an operator key. | Open — backlog #29 |
 | 2026-11-11 | Phase 6: no Stripe SecureStrings/price id exist, so checkout/webhook cannot fulfil. Failure paths are verified; live test-mode checkout needs operator keys. | Open — backlog #34 |
 | 2026-11-11 | Phase 6: account `UnreservedConcurrentExecutions` minimum (10) leaves no room for the planned reservations; both Lambdas run unreserved. | Open — external quota |
+| 2026-11-12 | M7: DynamoDB Local integration test `lists images newest first` was flaky because both rows shared one `createdAt` millisecond. Fixed by using distinct timestamps and asserting both id and `createdAt` order; the newest-first assertion is unchanged. | Fixed |
 
 ## Dependencies
 
