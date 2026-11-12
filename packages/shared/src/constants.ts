@@ -8,11 +8,37 @@ export const MAX_SHEET_TOKENS = 63
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 /** Content types accepted for uploads (also the presigned PUT constraint). */
-export const IMAGE_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
+export const IMAGE_CONTENT_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+] as const
 export type ImageContentType = (typeof IMAGE_CONTENT_TYPES)[number]
 
-/** Generation styles (parity with the source app). */
-export const IMAGE_STYLES = ['photographic', 'anime'] as const
+/**
+ * Generation styles (parity with the source app). The source form lists the
+ * same id twice (anime and photographic); this allowlist keeps each once.
+ */
+export const IMAGE_STYLES = [
+  'line-art',
+  'photographic',
+  'anime',
+  '3d-model',
+  'analog-film',
+  'cinematic',
+  'comic-book',
+  'digital-art',
+  'enhance',
+  'fantasy-art',
+  'isometric',
+  'low-poly',
+  'modeling-compound',
+  'neon-punk',
+  'origami',
+  'pixel-art',
+  'tile-texture',
+] as const
 export type ImageStyle = (typeof IMAGE_STYLES)[number]
 
 /** Credits granted on first login (lazy profile bootstrap). */
