@@ -140,6 +140,9 @@ body {
   font-optical-sizing: auto;
   font-weight: 400;
   font-style: normal;
+  /* The source app takes its full height from `.app-wrapper`; until the layout
+     ticket applies that wrapper, keep the parchment body viewport-tall. */
+  min-height: 100vh;
   background-color: #e6e1d9;
   background-image: url("./images/tiles_export.jpg");
   background-repeat: repeat;
