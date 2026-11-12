@@ -407,7 +407,7 @@ creation), which keeps the cap binding under repeated failures.
 - `GET /api/checkout/session/{id}` verifies the payment belongs to the caller before returning status.
 - `POST /api/webhooks/stripe` (execute-api URL, no authorizer) verifies the signature against the raw body and fulfills idempotently with `TransactWriteItems`.
 - Purchase UI stays disabled in v1; backend is ready for later enablement.
-- Price ID in SSM/config; publishable key in frontend env; secret + webhook secret in SSM SecureString.
+- Price ID in SSM/config; secret + webhook secret in SSM SecureString. A Stripe publishable key would only be added to the frontend env if purchases are enabled later; v1 configures none.
 
 ### 6.9 TanStack Query Behavior
 

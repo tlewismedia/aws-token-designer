@@ -119,7 +119,7 @@ npm test
 npm run build
 
 # Must print nothing (no external font hosts, no Stripe publishable key).
-grep -R "fonts.googleapis\|fonts.gstatic\|pk_test" apps/web/src infra -n
+grep -RE 'fonts\.googleapis|fonts\.gstatic|pk_test' apps/web infra -n
 ```
 
 The web component tests cover auth errors, the builder/gallery, the 63-token
@@ -403,8 +403,9 @@ uses the source Return copy, adapted to that response:
 - `succeeded` → “Payment received and credits have been applied. A confirmation
   email will be sent to you. If you have any questions, please email
   `orders@example.com`.”
-- `pending` → “Payment received. We are still processing your credits.”; the
-  page polls a few times, then offers a Refresh button.
+- `pending` → “Payment received. We are still processing your credits.” The
+  page polls while pending and always offers Refresh (disabled while a request
+  is in flight); Refresh remains available after polling stops.
 - `failed` → fulfillment-failed message with the `orders@example.com` contact.
 - `403`/`404`/missing `session_id` → unknown order / needs a session id (no
   payment data).

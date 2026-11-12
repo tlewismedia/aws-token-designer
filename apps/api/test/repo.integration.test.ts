@@ -151,13 +151,17 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
     })
 
     it('lists images newest first', async () => {
-      // Give the two rows distinct timestamps: when both shared one millisecond
-      // the test only passed by accident of SK ordering and failed in CI. Keep
-      // the newest-first assertion and check the timestamps as well as the ids.
-      const olderId = ulid()
-      const newerId = ulid()
-      const olderCreatedAt = '2026-01-01T00:00:00.000Z'
-      const newerCreatedAt = '2026-01-01T00:00:01.000Z'
+      // listImages orders by SK descending, and each SK embeds the image ULID.
+      // Generate deterministic ULIDs at distinct times so the lexical order is
+      // guaranteed (back-to-back calls in the same millisecond can be
+      // non-monotonic across a random-byte boundary). Keep the newest-first
+      // assertion and also check the stored createdAt values.
+      const olderCreatedAtMs = Date.UTC(2026, 0, 1)
+      const newerCreatedAtMs = olderCreatedAtMs + 1000
+      const olderId = ulid(olderCreatedAtMs)
+      const newerId = ulid(newerCreatedAtMs)
+      const olderCreatedAt = new Date(olderCreatedAtMs).toISOString()
+      const newerCreatedAt = new Date(newerCreatedAtMs).toISOString()
       const rows = [
         { id: olderId, createdAt: olderCreatedAt },
         { id: newerId, createdAt: newerCreatedAt },
