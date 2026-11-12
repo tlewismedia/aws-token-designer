@@ -384,8 +384,11 @@ across all partitions before comparing ownership (including the `403` vs
 
 **Guardrails:** daily cap (default 20/user/day, `RATE#<yyyy-mm-dd>` items with
 a conditional increment), kill switch (fail closed), API throttling, and the
-`GenerationCount` / `EstimatedAICost` EMF metrics (namespace `TokenDesigner`,
-dimension `Stage`) alarmed in the monitoring module. The worker is currently
+`GenerationCount` / `EstimatedAICost` / `GenerationFailures` EMF metrics
+(namespace `TokenDesigner`, dimension `Stage`) alarmed in the monitoring module.
+Handled failures (kill switch, missing key, Stability, sharp/S3/DDB) mark the
+job failed and return success, so `GenerationFailures` is the signal that makes
+them visible; Lambda `Errors` only catches crashes. The worker is currently
 **unreserved**: the dev account's Lambda concurrency limit is 10, so a
 reservation (ADR-0008's 5) does not fit until the quota is raised. Failed
 submissions still consume a daily slot (the increment runs before job
@@ -419,7 +422,7 @@ creation), which keeps the cap binding under repeated failures.
 - Environments: `dev`, `prod`; separate state files under `infra/envs/<env>`.
 - Backend: S3 bucket (versioned, encrypted, public access blocked) + native S3 lock (`use_lockfile = true`).
 - Bootstrap: `infra/bootstrap` creates the state bucket/lock before the first `init`.
-- Stateful resources use `prevent_destroy = true` in prod; dev may be destroyed.
+- Stateful resources are protected in prod: DynamoDB/Cognito native deletion protection, prod-only S3 bucket policies denying `DeleteBucket` (out-of-band deletes), and a prod-only `terraform_data.deletion_guard` with `lifecycle.prevent_destroy = true` (blocks a full `terraform destroy`). Dev may be destroyed.
 - Tags: `Project=token-designer`, `Stage=<env>`, `ManagedBy=terraform`.
 
 ### 7.2 Modules and Resources
@@ -428,11 +431,11 @@ creation), which keeps the cap binding under repeated failures.
 |---|---|
 | `cognito` | User pool, client, pre-sign-up Lambda trigger, permission |
 | `dynamodb` | Single table, TTL, on-demand |
-| `storage` | Web + media buckets, public access block, ownership, SSE, CORS, lifecycle, OAC bucket policy |
+| `storage` | Web + media buckets, public access block, ownership, SSE, lifecycle (media CORS + OAC bucket policy live in `cloudfront` since Phase 5) |
 | `lambda` | `api`, `generateWorker`, IAM roles, log groups, reserved concurrency, `sharp` layer |
 | `api` | HTTP API, stage `api`, JWT authorizer, routes, integrations, throttling, access logs |
 | `cloudfront` | Distribution, OAC, web + API origins, cache policies, response headers, SPA error responses |
-| `monitoring` | SNS topic + email subscription, CloudWatch alarms, budgets, anomaly detection |
+| `monitoring` | SNS topic (with service-publish policy) + email subscription, budget, CloudWatch alarms (Cost Anomaly Detection is account-level and not managed) |
 
 **No VPC:** Lambda runs outside a VPC so it has internet access for Stripe/Stability without a NAT Gateway. DynamoDB/S3/SSM are reached via public AWS endpoints.
 
@@ -466,8 +469,12 @@ creation), which keeps the cap binding under repeated failures.
 ### 7.6 Monitoring and Cost Guardrails
 
 - Budgets: $1/$5/$10/$25 alerts to a private email (placeholder in public docs).
-- Cost Anomaly Detection with a low threshold.
-- CloudWatch alarms: Lambda errors/throttles, API 5xx, DynamoDB throttles, webhook failures, generation failures, daily AI cost/count.
+- Cost Anomaly Detection: the account already runs a DIMENSIONAL monitor and
+  the quota rejects a second one, so Terraform does not manage one; the budget
+  and alarms are the guardrails.
+- CloudWatch alarms: API 5xx, Lambda errors/throttles (api + worker), DynamoDB
+  read/write throttle events, handled generation failures, and daily AI
+  count/cost. Webhook failures surface via the API 5xx/Lambda errors alarms.
 - SNS email subscription.
 - Log retention: 7 days dev, 30 days prod.
 - S3 lifecycle: abort incomplete multipart uploads after 1 day.
@@ -500,7 +507,7 @@ creation), which keeps the cap binding under repeated failures.
 | Cognito Essentials | <10k MAU | $0 |
 | CloudWatch | <5 GB logs, retention set | $0 |
 | SSM/Budgets/SNS | standard | ~$0 |
-| **AWS total** | | **~$0–1/month** |
+| **AWS total** | | **~$0–2/month** |
 
 Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transaction), domain (not used).
 
@@ -523,23 +530,29 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 
 ### 8.2 Controls Checklist
 
-- [ ] No secrets in repo; gitleaks/trufflehog clean.
-- [ ] Secrets in SSM SecureString; no secret values in Terraform state.
-- [ ] All API routes authenticated except `/health` and `/webhooks/stripe`.
-- [ ] JWT `sub` used for identity; path IDs checked against ownership.
-- [ ] Stripe session ownership verified before status return.
-- [ ] Webhook signature verified; idempotent fulfillment.
-- [ ] zod validation on every handler; style allowlist; length caps.
-- [ ] Presigned upload constraints (type, size); sharp re-encode strips EXIF.
-- [ ] S3 public access blocked; OAC; short URL TTLs.
-- [ ] Least-privilege IAM per Lambda.
-- [ ] CORS not needed (same-origin); Vite proxy in dev.
-- [ ] CSP/security headers via CloudFront.
-- [ ] No stack traces/internal details in client errors.
-- [ ] CloudTrail management events enabled.
-- [ ] Dependency scanning (Dependabot/Renovate, `npm audit`).
-- [ ] Branch protection, secret scanning, CodeQL if public.
-- [ ] Daily generation cap and kill switch.
+> Status as of Phase 6 (2026-11-11). Full control evidence lives in
+> [`docs/SECURITY.md`](SECURITY.md). The two unchecked items are GitHub/AWS
+> account settings, not code gaps.
+
+- [x] No secrets in repo; gitleaks/trufflehog clean.
+- [x] Secrets in SSM SecureString; no secret values in Terraform state.
+- [x] All API routes authenticated except `/health` and `/webhooks/stripe`.
+- [x] JWT `sub` used for identity; path IDs checked against ownership.
+- [x] Stripe session ownership verified before status return.
+- [x] Webhook signature verified; idempotent fulfillment.
+- [x] zod validation on every handler; style allowlist; length caps.
+- [x] Presigned upload constraints (type, size); sharp re-encode strips EXIF.
+- [x] S3 public access blocked; OAC; short URL TTLs.
+- [x] Least-privilege IAM per Lambda.
+- [x] CORS not needed (same-origin); Vite proxy in dev.
+- [x] CSP/security headers via CloudFront.
+- [x] No stack traces/internal details in client errors.
+- [ ] CloudTrail management events enabled. — Account-level setting, not managed
+  by this repo; operator to confirm a multi-region trail.
+- [x] Dependency scanning (Dependabot/Renovate, `npm audit`).
+- [ ] Branch protection, secret scanning, CodeQL if public. — GitHub
+  repository settings; see `docs/PUBLIC_SAFE.md`.
+- [x] Daily generation cap and kill switch.
 
 ---
 
@@ -637,7 +650,7 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 | Stripe signature/raw-body issues | Medium | High | Test with Stripe CLI; use execute-api URL; log request IDs |
 | AI cost abuse | Medium | Medium | Daily cap, kill switch, alarms, throttling |
 | Terraform learning curve | Medium | Medium | Primer, small increments, plan review before apply |
-| Free-tier changes | Low | Low | Budgets, anomaly detection, cost doc |
+| Free-tier changes | Low | Low | Budgets, alarms, cost doc |
 | Cold starts | Low | Low | arm64, small bundles, no provisioned concurrency |
 | DynamoDB throttling | Low | Low | On-demand; retries |
 | Print quality | Low | Low | Documented later improvement |
@@ -678,15 +691,36 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 
 ## 12. Definition of Done
 
-- [ ] All FRs pass the E2E suite.
-- [ ] NFRs are measured/monitored; alarms configured.
-- [ ] `terraform plan` is clean; no drift; state is remote and locked.
-- [ ] No secrets in repo; gitleaks clean; secret scanning enabled.
-- [ ] Unit, integration, and E2E tests pass; CI green.
-- [ ] Docs complete and linked from `README.md`.
-- [ ] Budgets and anomaly detection active.
-- [ ] Runbook reviewed and rollback tested.
-- [ ] Prod deployed and smoke-tested.
+> Status as of Phase 6 (2026-11-11). Unchecked items are genuinely pending, not
+> forgotten; the reason follows each.
+
+- [ ] All FRs pass the E2E suite. — Register/login, upload, sheet, print, and
+  logout pass against dev. Generation success and live checkout need operator
+  keys (#29/#34); the E2E run currently exercises their disabled/failure paths.
+- [x] NFRs are measured/monitored; alarms configured. — API 5xx, Lambda
+  errors/throttles, DynamoDB throttles, AI count/cost alarms, and the budget are
+  wired to SNS; the alarm drill is run by the operator after apply.
+- [x] `terraform plan` is clean; no drift; state is remote and locked. — Prod
+  plan is clean (72 creates on an empty state); dev uses S3 state with native
+  locking and no drift beyond this phase's alarm additions.
+- [ ] No secrets in repo; gitleaks clean; secret scanning enabled. — gitleaks
+  is clean and configured pre-commit; GitHub secret scanning is a repository
+  setting (see `docs/PUBLIC_SAFE.md`).
+- [ ] Unit, integration, and E2E tests pass; CI green. — All suites are green
+  locally and E2E is green against dev. CI runs the offline suites on every
+  PR; a repo-gated OIDC job runs the Playwright suite when
+  `E2E_ROLE_ARN`/`E2E_BASE_URL` and the E2E credentials are configured
+  (otherwise it is skipped because it needs live AWS).
+- [x] Docs complete and linked from `README.md`. — COSTS, SECURITY, RUNBOOK,
+  TESTING, TERRAFORM, ARCHITECTURE, PLAN, REQUIREMENTS, RAID, AGENTS.
+- [ ] Budgets and anomaly detection active. — The budget is active; Cost
+  Anomaly Detection is blocked by the account quota (a monitor already exists),
+  so the budget plus alarms are the guardrails.
+- [ ] Runbook reviewed and rollback tested. — The runbook is written; the
+  rollback drill is scheduled/run by the operator (commands in
+  `docs/RUNBOOK.md`).
+- [ ] Prod deployed and smoke-tested. — `infra/envs/prod` exists and plans
+  cleanly (not applied); deploy/smoke is the operator step after review.
 
 ---
 

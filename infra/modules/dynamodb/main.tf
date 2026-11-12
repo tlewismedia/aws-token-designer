@@ -47,5 +47,11 @@ resource "aws_dynamodb_table" "main" {
     enabled = false
   }
 
+  # Native deletion protection (Terraform lifecycle.prevent_destroy only
+  # accepts literal values, so a module variable cannot drive it). Prod sets
+  # prevent_destroy = true, which enables this and makes `terraform destroy`
+  # fail; dev leaves it false so the stack can be torn down.
+  deletion_protection_enabled = var.prevent_destroy
+
   tags = var.tags
 }

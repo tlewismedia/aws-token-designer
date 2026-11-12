@@ -226,7 +226,7 @@ resource "aws_lambda_function" "api" {
 
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${local.api_function_name}"
-  retention_in_days = 7 # dev; prod gets 30 days in Phase 6
+  retention_in_days = var.log_retention_days
 
   tags = var.tags
 }
@@ -267,7 +267,7 @@ resource "aws_lambda_function" "worker" {
 
 resource "aws_cloudwatch_log_group" "worker" {
   name              = "/aws/lambda/${local.worker_function_name}"
-  retention_in_days = 7 # dev; prod gets 30 days in Phase 6
+  retention_in_days = var.log_retention_days
 
   tags = var.tags
 }

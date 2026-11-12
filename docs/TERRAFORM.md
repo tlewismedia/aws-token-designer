@@ -26,8 +26,8 @@ One AWS object managed by Terraform. Examples in this stack:
 | Web + media buckets, encryption, lifecycle | `infra/modules/storage/main.tf` (`aws_s3_bucket`, `..._lifecycle_configuration`, ...) |
 | CloudFront distribution, OAC, SPA rewrite function, security headers | `infra/modules/cloudfront/main.tf` (`aws_cloudfront_distribution`, `..._origin_access_control`, `..._function`, `..._response_headers_policy`) |
 | Media bucket CORS (presigned PUT) | `infra/modules/cloudfront/main.tf` (`aws_s3_bucket_cors_configuration`) |
-| SNS topic + email subscription | `infra/modules/monitoring/main.tf` (`aws_sns_topic`, `aws_sns_topic_subscription`) |
-| Monthly budget, anomaly monitor + subscription | `infra/modules/monitoring/main.tf` (`aws_budgets_budget`, `aws_ce_anomaly_monitor`, `aws_ce_anomaly_subscription`) |
+| SNS topic + topic policy + email subscription | `infra/modules/monitoring/main.tf` (`aws_sns_topic`, `aws_sns_topic_policy`, `aws_sns_topic_subscription`) |
+| Monthly budget | `infra/modules/monitoring/main.tf` (`aws_budgets_budget`; Cost Anomaly Detection is account-level and intentionally not managed) |
 | State bucket (+ versioning, SSE-S3, public-access block) | `infra/bootstrap/main.tf` |
 
 ## State
@@ -35,8 +35,8 @@ One AWS object managed by Terraform. Examples in this stack:
 Terraform's record of what it created (a JSON snapshot per environment).
 Commands read state to plan the smallest change that reaches the config.
 
-- Separate state per env: `dev` key `dev/terraform.tfstate`
-  (prod gets its own env dir + key in Phase 6)
+- Separate state per env: `dev` key `dev/terraform.tfstate`, `prod` key
+  `prod/terraform.tfstate` (same bucket; `infra/envs/prod/backend.hcl.example`)
 - Never hand-edit state; inspect with `terraform show` / `terraform state list`
 - State may contain IDs/ARNs but **never secret values** in this stack —
   SSM values are created out-of-band (see "SSM secrets" below)
@@ -50,9 +50,11 @@ Terraform >= 1.10).
 - `infra/envs/dev/backend.tf` — intentionally an **empty** `backend "s3" {}`
   block. Backend blocks take no variables, so real values are injected at
   `init` time from a gitignored file
-- `infra/envs/dev/backend.hcl.example` — copy to `backend.hcl` (gitignored)
-  and fill in the real bucket name from the bootstrap output
+- `infra/envs/prod/backend.hcl.example` — copy to `backend.hcl` (gitignored)
+  and fill in the real bucket name from the bootstrap output; the key is
+  `prod/terraform.tfstate`
 - Init: `terraform -chdir=infra/envs/dev init -backend-config=backend.hcl`
+  (same pattern for `prod`)
 
 ## Module
 
@@ -72,10 +74,11 @@ Envs compose modules; modules never hardcode the stage.
   web-bucket OAC policy to the `cloudfront` module (both need the distribution)
 - `infra/modules/cloudfront/` — one default CloudFront URL for the SPA and
   the same-origin `/api/*` proxy (see "Phase 5 additions" below)
-- `infra/modules/monitoring/` — SNS topic + email subscription
+- `infra/modules/monitoring/` — SNS topic + topic policy + email subscription
   (`var.alert_email`, placeholder `alerts@example.com`), monthly budget with
-  $1/$5/$10/$25 thresholds, Cost Anomaly Detection monitor + low-threshold
-  ($5 impact) subscription
+  $1/$5/$10/$25 thresholds, and the CloudWatch alarm matrix (AI count/cost,
+  API 5xx, Lambda errors/throttles, DynamoDB throttles — see "Phase 6
+  additions")
 - Wiring: `infra/envs/dev/main.tf` calls every module with shared tags
 
 ## Plan / Apply
@@ -93,15 +96,84 @@ terraform -chdir=infra/envs/dev plan -out=tfplan
 terraform -chdir=infra/envs/dev apply tfplan
 ```
 
-CI runs `terraform fmt -check` + `validate` + `plan` on dev (see
-docs/PLAN.md section 9). Manual `apply` first; GitHub Actions OIDC later.
+CI runs `terraform fmt -check` + `validate` for every module and both envs;
+an optional OIDC job plans `dev` when the repo variables `AWS_PLAN_ROLE_ARN`
+and `TF_STATE_BUCKET` are set (see "CI Terraform plan" below). Manual `apply`
+first.
 
-## prevent_destroy
+## CI Terraform plan (optional)
 
-A guard flag that makes `terraform destroy` refuse to delete a resource.
-Dev resources are destroyable (no flag), so `destroy` works for cleanup.
-Prod (Phase 6) will set `prevent_destroy = true` on stateful resources
-(table, buckets) — see docs/ARCHITECTURE.md section 7.2.
+`.github/workflows/ci.yml` has a `terraform-plan` job that **skips unless**
+these repository variables are configured (Settings → Secrets and variables →
+Actions → Variables):
+
+| Variable | Purpose |
+|---|---|
+| `AWS_PLAN_ROLE_ARN` | OIDC role assumed by `aws-actions/configure-aws-credentials`. Must trust this repository/branch and have **read-only** access to the state bucket plus read-only AWS APIs for refresh. |
+| `TF_STATE_BUCKET` | State bucket name from `infra/bootstrap` (required for the job to run). |
+| `TF_STATE_KEY` | State key, normally `dev/terraform.tfstate`. |
+| `TF_STATE_REGION` | State bucket region (defaults to `us-west-2`). |
+
+The job never applies and runs `plan -lock=false`, so it does not write a
+state-lock object (the role only needs read access). It builds the API bundles
+and a placeholder sharp layer so `archive_file` can hash inputs, then runs
+`init` with `-backend-config` flags and `plan` for `infra/envs/dev`. The `if`
+condition requires both `AWS_PLAN_ROLE_ARN` and `TF_STATE_BUCKET`; without
+them the job is skipped, so forks stay green without AWS credentials. Keep it
+non-required.
+
+### Optional E2E job
+
+The `e2e` job skips unless the repository variables below exist; `secrets`
+cannot be used in a job-level `if`, so the run step exits 0 when the credentials
+are absent. Configure (Settings → Secrets and variables → Actions):
+
+| Kind | Name | Purpose |
+|---|---|---|
+| Variable | `E2E_ROLE_ARN` | OIDC role for the spec's optional Cognito cleanup (delete the registration user). |
+| Variable | `E2E_BASE_URL` | Deployed stage URL (e.g. the `web_url` output). |
+| Variable | `E2E_USER_POOL_ID` | Optional; Cognito pool id for cleanup. |
+| Variable | `AWS_REGION` | Optional; defaults to `us-west-2`. |
+| Secret | `E2E_EMAIL` | Seeded account email for the login journey. |
+| Secret | `E2E_PASSWORD` | Seeded account password. |
+
+Seed the account before enabling the job (`TF_ENV=<env> SEED_EMAIL=...
+SEED_PASSWORD=... npm run seed --workspace @aws-token-designer/api`). The job
+runs `npm ci`, installs Chromium, assumes the OIDC role, and runs `npm run e2e`
+with `E2E_BASE_URL`/`E2E_EMAIL`/`E2E_PASSWORD`/`E2E_USER_POOL_ID` from the
+variables/secrets. Without the variables it is skipped; without the secrets the
+run step is a no-op success.
+
+## prevent_destroy / deletion protection
+
+Prod stateful resources must survive an accidental `terraform destroy`; dev is
+allowed to be torn down.
+
+**Terraform limitation:** `lifecycle.prevent_destroy` accepts **only literal
+values** (variables/locals are rejected: "Variables may not be used here"). The
+modules instead expose a `prevent_destroy` input (default `false`) and use the
+closest valid, prod-gated mechanism:
+
+| Module | Mechanism |
+|---|---|
+| `dynamodb` | `deletion_protection_enabled = var.prevent_destroy` (native DynamoDB protection; prod `true`). |
+| `cognito` | `deletion_protection = var.prevent_destroy ? "ACTIVE" : "INACTIVE"` (native user-pool protection; prod `true`). |
+| `storage` | Prod-only `aws_s3_bucket_policy.media_delete_protection` denies `s3:DeleteBucket` on the media bucket (`count = var.prevent_destroy ? 1 : 0`). Dev gets no policy and stays destroyable. |
+| `cloudfront` | Prod-only `Deny s3:DeleteBucket` statement appended to the existing web-bucket policy (`var.protect_from_deletion`, prod `true`). Dev leaves it off. |
+
+Why a bucket policy: S3 has no native deletion-protection attribute, and
+`lifecycle` cannot read a variable. The bucket-policy `Deny` wins over the
+operator's IAM `Allow`, so it blocks out-of-band/console/IAM deletes. It is
+defence-in-depth, **not** the Terraform-level blocker: Terraform destroys the
+policy before the bucket. The actual `prevent_destroy` guarantee comes from the
+prod-only `terraform_data.deletion_guard` in `infra/envs/prod/main.tf`
+(`lifecycle { prevent_destroy = true }`), so a full `terraform destroy` on prod
+fails at that guard. (Targeted `terraform destroy -target=...` and
+`terraform state rm` can bypass a lifecycle guard — use them deliberately.)
+
+`infra/envs/prod` passes `prevent_destroy = true` to dynamodb/storage/cognito
+and `protect_from_deletion = true` to cloudfront. Dev leaves all of them false,
+so `terraform destroy` works for cleanup.
 
 ## Bootstrap
 
@@ -146,6 +218,21 @@ aws ssm put-parameter --name "/token-designer/dev/generation-enabled" \
 
 Lambda env vars will reference these parameter names (Phases 2–3), not values.
 
+## Alert email
+
+`alert_email` defaults to the placeholder `alerts@example.com` so the repo stays
+public-safe. **Pass the real address on every apply** (via `-var` or a
+gitignored tfvars file):
+
+```sh
+terraform -chdir=infra/envs/dev apply -var="alert_email=<private-address>"
+```
+
+If you apply without it after a deployment that used a real address, Terraform
+plans an SNS subscription replacement (destroy + create), which drops the
+confirmed subscription until the new address confirms. Check the plan for
+`aws_sns_topic_subscription.email must be replaced`.
+
 ## Tags
 
 Every resource carries `Project=token-designer`, `Stage=<env>`,
@@ -154,10 +241,10 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 
 ## Deferred to later phases
 
-- `infra/envs/prod/` — Phase 6
 - Custom domain + ACM certificate + Route 53 alias — later (the distribution
   already outputs `distribution_hosted_zone_id` for that step)
-- CloudWatch Lambda/API alarms beyond the Phase 3 AI alarms — Phase 6
+- Cost Anomaly Detection — blocked by the account quota (a DIMENSIONAL monitor
+  already exists); revisit if the quota is raised
 
 ## Phase 2 additions
 
@@ -329,3 +416,54 @@ default URL (PLAN 7.4, ADR-0003). No custom domain, ACM certificate, or Route
   `/index.html`. The Playwright smoke can target the deployed URL with
   `E2E_BASE_URL="$(terraform -chdir=infra/envs/dev output -raw web_url)" npm run e2e`
   (no local Vite server is started). See docs/TESTING.md.
+
+## Phase 6 additions (hardening, docs, prod)
+
+- **`infra/envs/prod/`** — same module composition as dev, `stage = "prod"`,
+  state key `prod/terraform.tfstate`, `alert_email` placeholder (real value
+  passed at apply), `web_origin = ""`, `media_allowed_origins = []` (only the
+  CloudFront origin is allowed), `reserved_concurrency = -1` (account limit),
+  and `prevent_destroy = true` for dynamodb/storage/cognito plus
+  `protect_from_deletion = true` for the web-bucket policy.
+- **Log retention** — `infra/modules/lambda`, `infra/modules/api`, and
+  `infra/modules/cognito` take `log_retention_days` (default 7). Prod passes 30
+  for both Lambda log groups, the API Gateway access log, and the Cognito
+  pre-sign-up Lambda log group; dev keeps 7.
+- **Alarm matrix** (`infra/modules/monitoring`, all to the SNS alerts topic,
+  `period = 300`, one evaluation, threshold 1, `notBreaching`):
+
+  | Alarm suffix | Namespace / metric | Dimensions |
+  |---|---|---|
+  | `api-5xx` | `AWS/ApiGateway` `5xx` | `ApiId`, `Stage=api` (the HTTP API stage is literally `api`) |
+  | `api-lambda-errors` | `AWS/Lambda` `Errors` | `FunctionName=<api>` |
+  | `worker-lambda-errors` | `AWS/Lambda` `Errors` (crashes only) | `FunctionName=<worker>` |
+  | `api-lambda-throttles` | `AWS/Lambda` `Throttles` | `FunctionName=<api>` |
+  | `worker-lambda-throttles` | `AWS/Lambda` `Throttles` | `FunctionName=<worker>` |
+  | `dynamodb-read-throttle-events` | `AWS/DynamoDB` `ReadThrottleEvents` | `TableName` |
+  | `dynamodb-write-throttle-events` | `AWS/DynamoDB` `WriteThrottleEvents` | `TableName` |
+  | `generation-failures` | `TokenDesigner` `GenerationFailures` | `Stage` (handled failures) |
+  | `generation-count-daily` | `TokenDesigner` `GenerationCount` | `Stage` (Sum > 50/day) |
+  | `estimated-ai-cost-daily` | `TokenDesigner` `EstimatedAICost` | `Stage` (Sum > $5/day) |
+
+  The monitoring module takes `api_id`, `api_stage_name`, `api_lambda_name`,
+  `worker_lambda_name`, and `table_name` so dimensions always match the
+  deployed resources. The AI alarms and `generation-failures` keep the worker's
+  EMF namespace/dimension (`packages/shared/src/constants.ts`: `TokenDesigner`
+  / `Stage`). `worker-lambda-errors` only sees unhandled crashes; handled
+  failures (kill switch, missing key, Stability non-2xx, sharp/S3/DDB) mark the
+  job failed and return success, so the worker emits the `GenerationFailures`
+  EMF metric instead.
+- **Budget** — $25 limit with $1/$5/$10/$25 actual-spend thresholds. The SNS
+  topic policy in the monitoring module grants `budgets.amazonaws.com`
+  `SNS:Publish` (scoped by `aws:SourceAccount` and the budget ARN) and
+  `cloudwatch.amazonaws.com` `SNS:Publish` (scoped by `aws:SourceAccount`),
+  preserving the account-owner path. Thresholds are documented in
+  `docs/COSTS.md`.
+- **CI** — `.github/dependabot.yml` (weekly npm + GitHub Actions), the optional
+  OIDC dev plan job (`-lock=false`), and the optional OIDC E2E job described
+  above.
+- **Scripts** — `scripts/deploy-web.sh [dev|prod]` (or `TF_ENV`) and
+  `apps/api/src/scripts/seed-dev.ts` (`TF_ENV`, default `dev`; all `SEED_*`
+  resource overrides skip Terraform) are environment-aware.
+- **Docs** — `docs/COSTS.md`, `docs/SECURITY.md`, `docs/RUNBOOK.md`, and the
+  Phase 6 material in `docs/TESTING.md`/`docs/RAID.md`.

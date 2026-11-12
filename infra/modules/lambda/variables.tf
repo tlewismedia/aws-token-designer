@@ -31,6 +31,17 @@ variable "reserved_concurrency" {
   default     = -1
 }
 
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention for both Lambda log groups. Dev uses 7, prod 30 (PLAN 7.6)."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_retention_days)
+    error_message = "log_retention_days must be a retention value supported by CloudWatch Logs."
+  }
+}
+
 variable "table_name" {
   description = "DynamoDB single-table name (env var TABLE_NAME)."
   type        = string

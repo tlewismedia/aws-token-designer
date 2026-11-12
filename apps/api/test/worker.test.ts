@@ -194,6 +194,7 @@ describe('runGenerationJob', () => {
   })
 
   it('refuses when the kill switch is false (no Stability call)', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
     ssmMock.getParameter.mockResolvedValue('false')
     await runGenerationJob(event)
     expect(stabilityMock.generateStabilityImage).not.toHaveBeenCalled()
@@ -203,6 +204,21 @@ describe('runGenerationJob', () => {
       'job-1',
       GENERATION_ERRORS.disabled,
     )
+
+    const metric = findMetricLine(logSpy)
+    const aws = metric?._aws as {
+      CloudWatchMetrics: { Namespace: string; Dimensions: string[][]; Metrics: { Name: string }[] }[]
+    }
+    expect(aws.CloudWatchMetrics[0].Namespace).toBe('TokenDesigner')
+    expect(aws.CloudWatchMetrics[0].Dimensions).toEqual([['Stage']])
+    expect(aws.CloudWatchMetrics[0].Metrics.map((m) => m.Name)).toEqual([
+      'GenerationFailures',
+    ])
+    expect(metric?.Stage).toBe('dev')
+    expect(metric?.GenerationFailures).toBe(1)
+    expect(metric?.FailureCode).toBe(GENERATION_ERRORS.disabled)
+    expect(metric?.GenerationCount).toBeUndefined()
+    logSpy.mockRestore()
   })
 
   it('fails closed when the kill switch parameter is missing', async () => {
@@ -239,8 +255,12 @@ describe('runGenerationJob', () => {
       GENERATION_ERRORS.failed,
     )
     expect(s3Mock.putObject).not.toHaveBeenCalled()
-    // No metric: the provider rejected the request before doing billable work.
-    expect(findMetricLine(logSpy)).toBeNull()
+    // No billable generation, but the handled failure is visible to the
+    // generation-failures alarm.
+    const metric = findMetricLine(logSpy)
+    expect(metric?.GenerationFailures).toBe(1)
+    expect(metric?.FailureCode).toBe(GENERATION_ERRORS.failed)
+    expect(metric?.GenerationCount).toBeUndefined()
     logSpy.mockRestore()
   })
 

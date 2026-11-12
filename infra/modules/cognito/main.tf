@@ -51,6 +51,17 @@ resource "aws_lambda_function" "presignup" {
   filename         = data.archive_file.presignup.output_path
   source_code_hash = data.archive_file.presignup.output_base64sha256
 
+  # Create the retention-configured log group first so Lambda cannot
+  # auto-create an unbounded-retention one.
+  depends_on = [aws_cloudwatch_log_group.presignup]
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "presignup" {
+  name              = "/aws/lambda/${var.project}-${var.stage}-cognito-presignup"
+  retention_in_days = var.log_retention_days
+
   tags = var.tags
 }
 
@@ -74,6 +85,12 @@ resource "aws_cognito_user_pool" "main" {
   lambda_config {
     pre_sign_up = aws_lambda_function.presignup.arn
   }
+
+  # Native deletion protection (Terraform lifecycle.prevent_destroy only
+  # accepts literal values, so a module variable cannot drive it). Prod sets
+  # prevent_destroy = true, which blocks deleting the pool (and its users);
+  # dev leaves it false so the stack can be torn down.
+  deletion_protection = var.prevent_destroy ? "ACTIVE" : "INACTIVE"
 
   tags = var.tags
 }

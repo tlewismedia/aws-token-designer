@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
-# Build the SPA with public dev outputs and publish it to the CloudFront-fronted
-# S3 web bucket (PLAN 7.4 / Phase 5).
+# Build the SPA with public environment outputs and publish it to the
+# CloudFront-fronted S3 web bucket (PLAN 7.4 / Phase 5).
 #
-#   ./scripts/deploy-web.sh
+#   ./scripts/deploy-web.sh          # dev (default)
+#   ./scripts/deploy-web.sh prod     # prod
+#   TF_ENV=prod ./scripts/deploy-web.sh
 #
-# Reads terraform outputs from infra/envs/dev (override with ENV_DIR=...).
-# The SPA is built WITHOUT an API URL: it calls relative /api/... and CloudFront
-# proxies that to execute-api on the same origin (ADR-0003).
+# Reads terraform outputs from infra/envs/<env>. The SPA is built WITHOUT an
+# API URL: it calls relative /api/... and CloudFront proxies that to
+# execute-api on the same origin (ADR-0003).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-ENV_DIR="${ENV_DIR:-infra/envs/dev}"
+ENV_NAME="${1:-${TF_ENV:-dev}}"
+case "${ENV_NAME}" in
+  dev | prod) ;;
+  *)
+    printf 'deploy-web: unsupported environment "%s" (expected dev or prod)\n' "${ENV_NAME}" >&2
+    exit 1
+    ;;
+esac
+
+ENV_DIR="infra/envs/${ENV_NAME}"
 DIST_DIR="apps/web/dist"
 
 die() {
@@ -45,7 +56,7 @@ export VITE_COGNITO_USER_POOL_ID="${POOL_ID}"
 export VITE_COGNITO_CLIENT_ID="${CLIENT_ID}"
 unset VITE_API_URL
 
-echo "deploy-web: building SPA for ${WEB_URL}"
+echo "deploy-web: building SPA for ${WEB_URL} (${ENV_NAME})"
 npm run build --workspace @aws-token-designer/web
 
 [ -f "${DIST_DIR}/index.html" ] || die "build did not produce ${DIST_DIR}/index.html"
@@ -67,4 +78,4 @@ aws cloudfront create-invalidation \
   --distribution-id "${DISTRIBUTION_ID}" \
   --paths "/index.html" >/dev/null
 
-echo "deploy-web: deployed ${WEB_URL}"
+echo "deploy-web: deployed ${WEB_URL} (${ENV_NAME})"

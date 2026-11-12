@@ -76,7 +76,7 @@ resource "aws_apigatewayv2_route" "routes" {
 
 resource "aws_cloudwatch_log_group" "access" {
   name              = "/aws/apigateway/${var.project}-${var.stage}-api"
-  retention_in_days = 7 # dev; prod gets 30 days in Phase 6
+  retention_in_days = var.log_retention_days
 
   tags = var.tags
 }

@@ -14,3 +14,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "prevent_destroy" {
+  description = "Refuse to destroy the table. Prod passes true (PLAN 7.1); dev leaves the default."
+  type        = bool
+  default     = false
+}

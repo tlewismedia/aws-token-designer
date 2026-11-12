@@ -87,7 +87,7 @@ Out of scope: custom domain, migration, real-time, multi-sheet, account page, pu
 | Payments | Stripe embedded checkout; execute-api webhook; idempotent DynamoDB transaction |
 | Hosting | CloudFront + S3; same-origin `/api/*` proxy; no CORS |
 | IaC | Terraform modules + per-env state; bootstrap for state bucket |
-| Cost | Free-tier-first; budgets/anomaly detection; daily AI cap; kill switch |
+| Cost | Free-tier-first; budgets/alarms; daily AI cap; kill switch |
 | Observability | Structured logs; CloudWatch alarms; SNS email |
 
 ---
@@ -293,7 +293,7 @@ flowchart TB
       Cog["Cognito User Pool"]
       SSM["SSM Parameter Store"]
       Obs["CloudWatch + SNS"]
-      Budgets["AWS Budgets + Cost Anomaly Detection"]
+      Budgets["AWS Budgets + CloudWatch alarms"]
     end
   end
 
@@ -322,7 +322,7 @@ flowchart TB
 
 Source: [`diagrams/aws-deployment.d2`](diagrams/aws-deployment.d2). Regenerate with `./scripts/render-diagram.sh`. This is the D2 snapshot; the Mermaid views above are the living, PR-reviewed views. See [`diagrams/README.md`](diagrams/README.md).
 
-**Environments:** `dev` and `prod`, separate Terraform state, same module composition. Dev resources may be destroyed; prod stateful resources use `prevent_destroy`.
+**Environments:** `dev` and `prod`, separate Terraform state, same module composition. Dev resources may be destroyed; prod stateful resources use native DynamoDB/Cognito deletion protection, prod-only S3 bucket policies that deny `s3:DeleteBucket` (out-of-band deletes), and a prod-only `terraform_data.deletion_guard` with `lifecycle.prevent_destroy = true` that makes a full `terraform destroy` fail at the guard.
 
 **No VPC:** all Lambda functions run outside a VPC. Internet access for Stripe/Stability is direct; AWS services are reached via public endpoints.
 
@@ -356,21 +356,21 @@ Source: [`diagrams/aws-deployment.d2`](diagrams/aws-deployment.d2). Regenerate w
 ### 8.4 Observability
 
 - Structured JSON logs with request IDs; secrets/tokens redacted.
-- CloudWatch metrics: Lambda errors/throttles, API 5xx/latency, DynamoDB throttles, generation count/cost, webhook failures.
+- CloudWatch metrics: Lambda errors/throttles, API 5xx/latency, DynamoDB read/write throttle events, generation count/cost, handled generation failures.
 - Alarms → SNS → email (private address; placeholder in public docs).
-- Budgets and Cost Anomaly Detection.
-- CloudTrail management events enabled.
+- Budgets; Cost Anomaly Detection is account-level and not managed by Terraform.
+- CloudTrail management events enabled (account-level).
 
 ### 8.5 Cost
 
 - Free-tier-first: Lambda, CloudFront, Cognito Essentials, DynamoDB storage, CloudWatch logs.
 - Avoid: NAT Gateway, Secrets Manager, WAF, customer-managed KMS keys, provisioned concurrency, RDS/OpenSearch.
-- Guardrails: budgets, anomaly detection, reserved concurrency, API throttling, daily AI cap, kill switch.
-- Estimated AWS cost at demo traffic: ~$0–1/month; AI and Stripe are usage-based.
+- Guardrails: budgets, alarms, reserved concurrency, API throttling, daily AI cap, kill switch.
+- Estimated AWS cost at demo traffic: ~$0–2/month; AI and Stripe are usage-based.
 
 ### 8.6 Deployment and Operations
 
-- Terraform modules + per-env state; bootstrap state bucket; `prevent_destroy` in prod.
+- Terraform modules + per-env state; bootstrap state bucket; native deletion protection and prod-only S3 delete-protection policies.
 - Build Lambda bundles and the sharp layer in scripts/CI; Terraform packages artifacts.
 - Build the SPA, sync to S3, invalidate only `/index.html`.
 - Runbook covers alarms, failed deployments, webhook failures, and rollback.
@@ -425,7 +425,7 @@ See `docs/PLAN.md` §5.2 for the full NFR table. Summary:
 | Single sheet UI | Only latest sheet | Later improvement |
 | No custom domain | Default CloudFront URL | Later: ACM + Route 53 |
 | Terraform learning curve | Team unfamiliarity | Primer, plan reviews, small increments |
-| Free-tier changes | AWS policy changes | Budgets, anomaly detection, cost review |
+| Free-tier changes | AWS policy changes | Budgets, alarms, cost review |
 
 ---
 

@@ -77,3 +77,8 @@ output "generation_worker_role_arn" {
   description = "Execution role ARN of the generateWorker Lambda."
   value       = module.lambda.worker_role_arn
 }
+
+output "api_id" {
+  description = "HTTP API id (CloudWatch ApiId dimension for alarm drills)."
+  value       = module.api.api_id
+}
