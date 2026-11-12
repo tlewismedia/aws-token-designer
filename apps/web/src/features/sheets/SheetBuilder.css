@@ -1,0 +1,57 @@
+.sheet-builder-container {
+  width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.add-button {
+  background-color: black;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.add-button:active {
+  transform: scale(0.98);
+}
+
+.collection-placeholder {
+  font-size: 16px;
+  color: #666;
+  padding: 20px;
+  border: 1px dashed #ccc;
+  border-radius: 5px;
+  text-align: center;
+  background-color: #f9f9f9;
+}
+
+.library {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-builder-wrapper {
+  height: 100%;
+}
+
+@media (max-width: 700px) {
+  .sheet-builder-container {
+    flex-direction: column-reverse;
+    padding-bottom: 0;
+  }
+}

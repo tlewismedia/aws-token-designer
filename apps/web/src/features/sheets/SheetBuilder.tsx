@@ -1,10 +1,16 @@
 // SheetBuilder (FR-13): gallery + token sheet + upload/generate modals.
+//
+// Markup and CSS follow the source app (#63). The modals are still the #64
+// adapter components until #65 replaces them with the ported forms.
 
 import { useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faUpload, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons'
 import ImageGallery from '../images/ImageGallery'
 import UploadImageModal from '../images/UploadImageModal'
 import GenerateImageModal from '../images/GenerateImageModal'
 import TokenSheet from './TokenSheet'
+import './SheetBuilder.css'
 
 export default function SheetBuilder() {
   const [isUploadOpen, setIsUploadOpen] = useState(false)
@@ -16,24 +22,27 @@ export default function SheetBuilder() {
         <div className="library">
           <div className="button-group">
             <button
-              className="btn btn-primary"
+              className="add-button"
               onClick={() => setIsGenerateOpen(true)}
-              title="Generate an image with AI"
+              aria-label="Generate image"
             >
-              ✨ Generate
+              <FontAwesomeIcon icon={faWandMagicSparkles} />
             </button>
             <button
-              className="btn btn-primary"
+              className="add-button"
               onClick={() => setIsUploadOpen(true)}
-              title="Upload image"
+              aria-label="Upload image"
             >
-              ⬆ Upload
+              <FontAwesomeIcon icon={faUpload} />
             </button>
           </div>
+
           <ImageGallery />
         </div>
+
         <TokenSheet />
       </div>
+
       <UploadImageModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
       <GenerateImageModal isOpen={isGenerateOpen} onClose={() => setIsGenerateOpen(false)} />
     </div>
