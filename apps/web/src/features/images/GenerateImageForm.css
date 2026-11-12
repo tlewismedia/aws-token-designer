@@ -1,0 +1,146 @@
+/* Ported from the source GenerateImageForm.css (issue #65). Selectors are
+   scoped to the form so they cannot collide with the upload form or the
+   builder/gallery rules in styles.css. */
+
+.generate-image-form-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.generate-image-form {
+  width: 100%;
+}
+
+.generate-image-form h2 {
+  margin-top: 0;
+  margin-bottom: 25px;
+  color: #333;
+  font-size: 28px;
+  text-align: left;
+  font-weight: bold;
+}
+
+.generate-image-form .form-group {
+  margin-bottom: 20px;
+}
+
+.generate-image-form .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.generate-image-form .form-group input[type='text'],
+.generate-image-form .form-group textarea,
+.generate-image-form .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: white;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.generate-image-form .form-group input[type='text']:focus,
+.generate-image-form .form-group textarea:focus,
+.generate-image-form .form-group select:focus {
+  outline: none;
+  border-color: #111;
+}
+
+.generate-image-form .form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.generate-image-form .generate-button {
+  width: 100%;
+  background-color: #000;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-top: 10px;
+}
+
+.generate-image-form .generate-button:hover:not(:disabled) {
+  background-color: #111;
+}
+
+.generate-image-form .generate-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.generate-image-form .generate-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.generate-image-form .error-message {
+  color: #dc3545;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.generate-image-form .success-message {
+  color: #155724;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+/* Structured, port-specific error panel (moderation, rate limit, network). */
+.generate-image-form .error-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e3b3b8;
+  border-left: 4px solid #b02a37;
+  border-radius: 6px;
+  background: #fdf2f3;
+  margin-bottom: 15px;
+}
+
+.generate-image-form .error-title {
+  color: #842029;
+  font-size: 15px;
+}
+
+.generate-image-form .error-panel .error-message {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #5c1d23;
+  font-size: 14px;
+}
+
+.generate-image-form .error-hint {
+  margin: 0;
+  color: #6c4a4d;
+  font-size: 13px;
+}
+
+.generate-image-form .form-note {
+  color: #666;
+  font-size: 13px;
+}
