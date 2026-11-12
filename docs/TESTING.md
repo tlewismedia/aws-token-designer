@@ -212,9 +212,20 @@ min), all against namespace `TokenDesigner`, dimension `Stage=dev`.
 ## Payments smoke (Phase 4)
 
 The purchase UI stays disabled (`/buy-credits` is still a placeholder), but the
-backend is live-ready. In `dev` the current environment has **no Stripe keys in
-SSM**, so checkout answers `503 BILLING_DISABLED` and the webhook answers `503`
-until an operator configures them.
+backend is live. Test-mode keys were provisioned 2026-11-11 (Stripe test secret +
+per-environment webhook endpoints; price `price_1SKV9BRJneXS2FG6lEiXjYKH`, $1 →
+10 credits) and the flow was verified end-to-end in **dev and prod**.
+
+> **Stripe API rename:** the embedded Checkout UI mode must be
+> `ui_mode: 'embedded_page'`; Stripe now rejects `'embedded'` with a
+> `StripeInvalidRequestError`. The route and its regression test assert
+> `embedded_page`.
+
+**Drill log — 2026-11-11 (dev and prod):** real test-mode payment with card
+`4242 4242 4242 4242` → redirect to `/return?session_id=…` → webhook fulfilled →
+payment `succeeded`, credits `10 → 20`, return page shows "Payment confirmed —
+10 credits added"; replaying the same Stripe event id → `200`, credits
+unchanged.
 
 ### Offline tests
 

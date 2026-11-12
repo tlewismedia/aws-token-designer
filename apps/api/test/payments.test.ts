@@ -190,7 +190,7 @@ describe('POST /checkout/session', () => {
 
     expect(checkoutCreate).toHaveBeenCalledTimes(1)
     expect(checkoutCreate).toHaveBeenCalledWith({
-      ui_mode: 'embedded',
+      ui_mode: 'embedded_page',
       mode: 'payment',
       line_items: [{ price: 'price_test_123', quantity: 1 }],
       return_url: 'http://localhost:5173/return?session_id={CHECKOUT_SESSION_ID}',

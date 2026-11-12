@@ -40,7 +40,8 @@ export function registerCheckoutRoutes(app: App): void {
     let session: Stripe.Checkout.Session
     try {
       session = await stripe.checkout.sessions.create({
-        ui_mode: 'embedded',
+        // Stripe renamed the embedded Checkout UI mode; `embedded` now errors.
+        ui_mode: 'embedded_page',
         mode: 'payment',
         line_items: [{ price: billing.priceId, quantity: 1 }],
         return_url: `${billing.webOrigin}/return?session_id={CHECKOUT_SESSION_ID}`,
