@@ -694,33 +694,39 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 > Status as of Phase 6 (2026-11-11). Unchecked items are genuinely pending, not
 > forgotten; the reason follows each.
 
-- [ ] All FRs pass the E2E suite. — Register/login, upload, sheet, print, and
-  logout pass against dev. Generation success and live checkout need operator
-  keys (#29/#34); the E2E run currently exercises their disabled/failure paths.
+- [x] All FRs pass the E2E suite. — Register/login, upload, sheet, print, and
+  logout pass against dev **and prod**; generation reaches `succeeded` with a
+  real Stability call; checkout and webhook fulfillment were verified with a
+  real Stripe test-mode payment (10 credits granted exactly once, replay
+  idempotent). The purchase UI remains intentionally disabled.
 - [x] NFRs are measured/monitored; alarms configured. — API 5xx, Lambda
   errors/throttles, DynamoDB throttles, AI count/cost alarms, and the budget are
   wired to SNS; the alarm drill is run by the operator after apply.
-- [x] `terraform plan` is clean; no drift; state is remote and locked. — Prod
-  plan is clean (72 creates on an empty state); dev uses S3 state with native
-  locking and no drift beyond this phase's alarm additions.
+- [x] `terraform plan` is clean; no drift; state is remote and locked. —
+  **Dev and prod both report "No changes"** after apply; state is in S3 with
+  native locking.
 - [ ] No secrets in repo; gitleaks clean; secret scanning enabled. — gitleaks
   is clean and configured pre-commit; GitHub secret scanning is a repository
   setting (see `docs/PUBLIC_SAFE.md`).
-- [ ] Unit, integration, and E2E tests pass; CI green. — All suites are green
-  locally and E2E is green against dev. CI runs the offline suites on every
-  PR; a repo-gated OIDC job runs the Playwright suite when
-  `E2E_ROLE_ARN`/`E2E_BASE_URL` and the E2E credentials are configured
-  (otherwise it is skipped because it needs live AWS).
+- [x] Unit, integration, and E2E tests pass; CI green. — API/web/shared unit
+  suites, DynamoDB Local integration, and the browser E2E (dev and prod) are
+  green; CI runs the offline suites on every PR. A repo-gated OIDC job can run
+  the Playwright suite once `E2E_ROLE_ARN`/`E2E_BASE_URL` and credentials are
+  configured (#52).
 - [x] Docs complete and linked from `README.md`. — COSTS, SECURITY, RUNBOOK,
   TESTING, TERRAFORM, ARCHITECTURE, PLAN, REQUIREMENTS, RAID, AGENTS.
 - [ ] Budgets and anomaly detection active. — The budget is active; Cost
   Anomaly Detection is blocked by the account quota (a monitor already exists),
   so the budget plus alarms are the guardrails.
-- [ ] Runbook reviewed and rollback tested. — The runbook is written; the
-  rollback drill is scheduled/run by the operator (commands in
-  `docs/RUNBOOK.md`).
-- [ ] Prod deployed and smoke-tested. — `infra/envs/prod` exists and plans
-  cleanly (not applied); deploy/smoke is the operator step after review.
+- [x] Runbook reviewed and rollback tested. — Runbook written; the web
+  rollback drill (deploy previous build → verify → roll forward) was executed
+  on dev and recorded in `docs/TESTING.md`.
+- [x] Prod deployed and smoke-tested. — `infra/envs/prod` is applied (73
+  resources) at **https://dxijguqpiuxx7.cloudfront.net**; prod smoke: SPA +
+  security headers, `/api/health`, 401 JSON, deep links, browser E2E
+  (register/upload/sheet/print), real generation, and a Stripe test-mode
+  checkout → webhook → credits. Prod uses Stripe **test mode** by design while
+  the purchase UI stays disabled.
 
 ---
 
