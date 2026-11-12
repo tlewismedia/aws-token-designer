@@ -78,7 +78,7 @@ describe('sheetSchema', () => {
     const sheet = sheetSchema.parse({
       id: '01JD',
       sub: 'sub-1',
-      name: 'Default Sheet',
+      name: 'New Collection',
       template: 'default',
       images: Array.from({ length: 63 }, (_, i) => `img-${i}`),
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -91,7 +91,7 @@ describe('sheetSchema', () => {
       sheetSchema.parse({
         id: '01JD',
         sub: 'sub-1',
-        name: 'Default Sheet',
+        name: 'New Collection',
         template: 'default',
         images: Array.from({ length: 64 }, (_, i) => `img-${i}`),
         createdAt: '2026-01-01T00:00:00.000Z',

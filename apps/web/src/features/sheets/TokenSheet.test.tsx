@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
   const sheet = {
     id: 'sheet-1',
     sub: 'user-1',
-    name: 'Default Sheet',
+    name: 'New Collection',
     template: 'default',
     // First entry resolves to no image; second is a ready image.
     images: ['dangling', 'img-1'],
@@ -174,7 +174,7 @@ describe('TokenSheet', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Add Token Sheet' }))
 
-    expect(mocks.createSheet).toHaveBeenCalledWith('Default Sheet')
+    expect(mocks.createSheet).toHaveBeenCalledWith('New Collection')
   })
 
   it('surfaces a create-sheet error in the no-sheet state', () => {

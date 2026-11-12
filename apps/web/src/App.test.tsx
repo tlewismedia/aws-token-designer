@@ -28,14 +28,15 @@ beforeEach(() => {
 })
 
 describe('App shell', () => {
-  it('renders the marketing page without a navbar when signed out', async () => {
+  it('renders the promotion page without a navbar when signed out', async () => {
     getCurrentUserMock.mockRejectedValue(new Error('not signed in'))
 
     render(<App />)
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /aws token designer/i })).toBeInTheDocument(),
+      expect(screen.getByText(/fastest, easiest way to create game tokens/i)).toBeInTheDocument(),
     )
+    expect(screen.getAllByRole('button', { name: 'Sign Up Now' })).toHaveLength(2)
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(screen.queryByText(/please log in to view your credits/i)).not.toBeInTheDocument()
   })

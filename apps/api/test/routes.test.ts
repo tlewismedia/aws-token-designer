@@ -171,7 +171,7 @@ describe('GET /me', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     })
     repoStub.listSheets.mockResolvedValue([
-      { id: 'sheet-1', sub: 'user-1', name: 'Default Sheet', template: 'default', images: [], createdAt: 'x' },
+      { id: 'sheet-1', sub: 'user-1', name: 'New Collection', template: 'default', images: [], createdAt: 'x' },
     ])
     const app = createApp()
     const res = await authedRequest(app, '/me')
@@ -406,7 +406,7 @@ describe('sheets routes', () => {
     entityId: 'sheet-1',
     id: 'sheet-1',
     sub: 'user-1',
-    name: 'Default Sheet',
+    name: 'New Collection',
     template: 'default',
     images: [] as string[],
     createdAt: '2026-01-01T00:00:00.000Z',

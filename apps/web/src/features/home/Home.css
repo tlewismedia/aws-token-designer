@@ -2,26 +2,6 @@
   min-height: 0;
 }
 
-/* Temporary marketing block until the Promotion page lands (#66). */
-.marketing {
-  max-width: 640px;
-  margin: 40px auto;
-  padding: 0 16px;
-}
-
-.tagline {
-  font-size: 18px;
-  color: #444;
-}
-
-.marketing-list {
-  line-height: 1.8;
-}
-
-.marketing-cta {
-  font-weight: 600;
-}
-
 .home-success-banner {
   margin: 16px auto;
   width: fit-content;

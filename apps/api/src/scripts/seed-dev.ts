@@ -14,7 +14,7 @@
 //   TF_ENV          (default dev; selects infra/envs/<env> unless overridden)
 //   SEED_EMAIL      (default dev-user@example.com)
 //   SEED_PASSWORD   (default Test1234!)
-//   SEED_SHEET_NAME (default "Default Sheet")
+//   SEED_SHEET_NAME (default "New Collection")
 //   SEED_USER_POOL_ID / SEED_CLIENT_ID / SEED_TABLE_NAME: set all three to skip
 //   Terraform; otherwise Terraform outputs are preferred and these are fallbacks
 

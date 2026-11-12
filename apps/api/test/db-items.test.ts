@@ -37,7 +37,7 @@ describe('toItem marshalling safety', () => {
     const sheet: Sheet = {
       id: 'sheet-1',
       sub: 'user-1',
-      name: 'Default Sheet',
+      name: 'New Collection',
       template: 'default',
       images: [],
       createdAt: '2026-01-01T00:00:00.000Z',
