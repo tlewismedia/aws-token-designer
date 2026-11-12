@@ -90,17 +90,53 @@ export function useGenerationJob(jobId: string | null) {
   return { ...query, pollTimedOut }
 }
 
-/** User-facing text for the safe error codes the worker stores on a job. */
-export function generationErrorMessage(code: string | undefined): string {
+export interface GenerationErrorInfo {
+  /** Short headline shown in bold. */
+  title: string
+  /** What happened, in plain language. */
+  message: string
+  /** What the user can do next. */
+  hint?: string
+}
+
+/** Structured, user-facing error copy for the safe codes the worker stores. */
+export function generationErrorInfo(code: string | undefined): GenerationErrorInfo {
   switch (code) {
     case 'GENERATION_DISABLED':
-      return 'Image generation is temporarily disabled. Please try again later.'
+      return {
+        title: 'Generation is paused',
+        message: 'Image generation is temporarily switched off right now.',
+        hint: 'Please try again a little later.',
+      }
     case 'RATE_LIMITED':
-      return 'You have reached the daily generation limit (20). Try again tomorrow.'
+      return {
+        title: 'Daily limit reached',
+        message: 'You have used all 20 generations for today.',
+        hint: 'The limit resets at midnight UTC.',
+      }
     case 'GENERATION_MODERATED':
-      return 'The prompt was rejected by the image provider’s content filter. Try a different description.'
+      return {
+        title: 'That prompt was blocked',
+        message:
+          'The image provider’s content filter rejected this prompt, so no image was generated. Descriptions that are sexual, graphic, or otherwise restricted are blocked.',
+        hint: 'Try rewording the character: focus on clothing, pose, equipment, and setting instead. The prompt is still here so you can edit it.',
+      }
     case 'GENERATION_FAILED':
+      return {
+        title: 'Generation failed',
+        message: 'The image service did not return an image this time.',
+        hint: 'Try again in a moment; if it keeps failing, simplify the prompt.',
+      }
     default:
-      return 'Image generation failed. Please try again.'
+      return {
+        title: 'Something went wrong',
+        message: 'The image could not be generated.',
+        hint: 'Try again in a moment.',
+      }
   }
+}
+
+/** Backwards-compatible one-line text (used in tests and compact UIs). */
+export function generationErrorMessage(code: string | undefined): string {
+  return generationErrorInfo(code).message
 }
