@@ -15,7 +15,7 @@ jobs:
         ports:
           - 8000:8000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
@@ -32,7 +32,7 @@ jobs:
     name: Terraform (fmt, validate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
       - run: terraform fmt -check -recursive
       - name: Validate Terraform configs (if any exist yet)
@@ -67,7 +67,7 @@ jobs:
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
       TF_STATE_REGION: ${{ vars.TF_STATE_REGION }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
@@ -126,7 +126,7 @@ jobs:
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
@@ -150,7 +150,7 @@ jobs:
     name: Diagrams (staleness check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Re-render D2 diagrams
         run: ./scripts/render-diagram.sh
       # NOTE: compare SVG only. D2's PNG output embeds an eXIf chunk
