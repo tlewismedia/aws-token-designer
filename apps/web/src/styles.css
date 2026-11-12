@@ -444,6 +444,14 @@
     display: block !important;
   }
 
+  /* Temporary until the TokenSheet port adopts the source's
+     `.printable { margin: 0.5in !important; }` rule. App.css now positions
+     `.printable` absolutely, which removes it from the 0.5in padding on
+     `.token-sheet-container`; this keeps the previous print offset. */
+  .printable {
+    margin: 0.5in !important;
+  }
+
   .image-grid {
     width: 7.55in;
     height: 10.1in;
