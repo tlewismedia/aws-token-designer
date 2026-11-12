@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   generateStabilityImage,
   StabilityError,
+  StabilityModerationError,
   STABILITY_ULTRA_URL,
 } from '../src/lib/stability.js'
 
@@ -85,6 +86,25 @@ describe('generateStabilityImage', () => {
     await expect(
       generateStabilityImage({ apiKey: 'bad-key', prompt: 'A goblin chief' }),
     ).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('classifies a content-moderation rejection distinctly', async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          errors: ['Your request was flagged by our content moderation system'],
+          name: 'content_moderation',
+        }),
+        { status: 403, headers: { 'content-type': 'application/json' } },
+      ),
+    )
+
+    await expect(
+      generateStabilityImage({ apiKey: 'key', prompt: 'rejected prompt' }),
+    ).rejects.toBeInstanceOf(StabilityModerationError)
+    await expect(
+      generateStabilityImage({ apiKey: 'key', prompt: 'rejected prompt' }),
+    ).rejects.toMatchObject({ status: 403, name: 'StabilityModerationError' })
   })
 
   it('rejects an HTML body served with a 200', async () => {

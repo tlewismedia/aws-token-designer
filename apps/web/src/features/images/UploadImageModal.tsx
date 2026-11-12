@@ -4,7 +4,7 @@
 import { useRef, useState, type DragEvent, type FormEvent } from 'react'
 import Modal from '../../components/Modal'
 import { useUploadImage } from '../../hooks/useImages'
-import { MAX_UPLOAD_BYTES, IMAGE_CONTENT_TYPES } from '@aws-token-designer/shared'
+import { MAX_UPLOAD_BYTES, IMAGE_CONTENT_TYPES } from '@aws-token-designer/shared/constants'
 
 const ACCEPTED = IMAGE_CONTENT_TYPES.join(',')
 

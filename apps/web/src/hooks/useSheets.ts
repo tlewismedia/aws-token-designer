@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SheetsResponse, Sheet } from '@aws-token-designer/shared'
-import { MAX_SHEET_TOKENS } from '@aws-token-designer/shared'
+import { MAX_SHEET_TOKENS } from '@aws-token-designer/shared/constants'
 import { useAuth } from '../contexts/auth-context'
 import { apiFetch } from '../lib/api'
 import { queryKeys } from '../lib/query-client'
