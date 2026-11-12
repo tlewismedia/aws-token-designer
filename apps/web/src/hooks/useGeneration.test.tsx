@@ -17,7 +17,7 @@ vi.mock('../contexts/auth-context', () => ({
   useAuth: () => ({ user: { sub: 'user-1' } }),
 }))
 
-import { generationErrorInfo, useGenerationJob } from './useGeneration'
+import { generateRequestFromPrompt, generationErrorInfo, useGenerationJob } from './useGeneration'
 
 const baseJob = {
   id: 'job-1',
@@ -25,6 +25,7 @@ const baseJob = {
   type: 'generation',
   status: 'processing',
   imageId: 'img-1',
+  name: 'Goblin chief',
   prompt: 'A goblin chief',
   createdAt: '2026-01-01T00:00:00.000Z',
 }
@@ -116,6 +117,32 @@ describe('useGenerationJob', () => {
       await vi.advanceTimersByTimeAsync(JOB_POLL_INTERVAL_MS * 3)
     })
     expect(mocks.apiFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('generateRequestFromPrompt', () => {
+  it('maps the legacy prompt field to name + description for #64', () => {
+    expect(
+      generateRequestFromPrompt('  A goblin chief  ', {
+        negativePrompt: 'blurry',
+        style: 'anime',
+      }),
+    ).toEqual({
+      name: 'A goblin chief',
+      description: 'A goblin chief',
+      negativePrompt: 'blurry',
+      style: 'anime',
+    })
+  })
+
+  it('truncates the name to 100 characters and falls back for a blank prompt', () => {
+    const long = generateRequestFromPrompt('a'.repeat(150))
+    expect(long.name).toHaveLength(100)
+    expect(long.description).toHaveLength(150)
+    expect(generateRequestFromPrompt('   ')).toEqual({
+      name: 'Generated image',
+      description: '',
+    })
   })
 })
 

@@ -29,7 +29,7 @@ export default function UploadImageModal({
   const accept = (candidate: File | undefined) => {
     if (!candidate) return
     if (!(IMAGE_CONTENT_TYPES as readonly string[]).includes(candidate.type)) {
-      setError('Only PNG, JPEG, or WebP images are supported')
+      setError('Only PNG, JPEG, WebP, or GIF images are supported')
       return
     }
     if (candidate.size > MAX_UPLOAD_BYTES) {
@@ -78,7 +78,7 @@ export default function UploadImageModal({
           {file ? (
             <p>{file.name} ({prettyBytes(file.size)})</p>
           ) : (
-            <p>Drag an image here, or click to browse (PNG/JPEG/WebP, ≤ 10 MB)</p>
+            <p>Drag an image here, or click to browse (PNG/JPEG/WebP/GIF, ≤ 10 MB)</p>
           )}
         </div>
         <input

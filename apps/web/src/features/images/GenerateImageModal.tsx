@@ -3,15 +3,26 @@
 // failures show a safe message and polling stops.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { ImageStyle } from '@aws-token-designer/shared'
+import { IMAGE_STYLES, type ImageStyle } from '@aws-token-designer/shared'
 import Modal from '../../components/Modal'
 import {
+  generateRequestFromPrompt,
   generationErrorInfo,
   useGenerateImage,
   useGenerationJob,
   type GenerationErrorInfo,
 } from '../../hooks/useGeneration'
 import { ApiError } from '../../lib/api'
+
+/** Human-readable label for a style id (full form lands in #65). */
+function styleLabel(style: ImageStyle): string {
+  return style
+    .split('-')
+    .map((part) =>
+      part === '3d' ? '3D' : part.charAt(0).toUpperCase() + part.slice(1),
+    )
+    .join(' ')
+}
 
 export default function GenerateImageModal({
   isOpen,
@@ -53,11 +64,12 @@ export default function GenerateImageModal({
     setError(null)
     setJobId(null)
     try {
-      const result = await generate.mutateAsync({
-        prompt: prompt.trim(),
-        ...(negativePrompt.trim() ? { negativePrompt: negativePrompt.trim() } : {}),
-        style,
-      })
+      const result = await generate.mutateAsync(
+        generateRequestFromPrompt(prompt, {
+          ...(negativePrompt.trim() ? { negativePrompt: negativePrompt.trim() } : {}),
+          style,
+        }),
+      )
       setJobId(result.jobId)
     } catch (err) {
       setError(errorInfoFromRequest(err))
@@ -136,8 +148,11 @@ export default function GenerateImageModal({
           onChange={(e) => setStyle(e.target.value as ImageStyle)}
           disabled={isWorking || succeeded}
         >
-          <option value="photographic">Photographic</option>
-          <option value="anime">Anime</option>
+          {IMAGE_STYLES.map((option) => (
+            <option key={option} value={option}>
+              {styleLabel(option)}
+            </option>
+          ))}
         </select>
         {succeeded ? (
           <button type="button" className="btn btn-primary" onClick={handleClose}>

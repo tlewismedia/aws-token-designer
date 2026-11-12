@@ -3,6 +3,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  ImageStyle,
   ImageWithUrls,
   ImagesResponse,
   UploadUrlResponse,
@@ -26,7 +27,7 @@ export interface UploadImageInput {
   file: File
   name: string
   description?: string
-  style?: 'photographic' | 'anime'
+  style?: ImageStyle
 }
 
 export function useUploadImage() {
@@ -40,7 +41,11 @@ export function useUploadImage() {
         throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'Images must be 10 MB or smaller')
       }
       if (!(IMAGE_CONTENT_TYPES as readonly string[]).includes(file.type)) {
-        throw new ApiError(400, 'INVALID_REQUEST', 'Only PNG, JPEG, or WebP images are supported')
+        throw new ApiError(
+          400,
+          'INVALID_REQUEST',
+          'Only PNG, JPEG, WebP, or GIF images are supported',
+        )
       }
       const presign = await apiFetch<UploadUrlResponse>('/images/upload-url', {
         method: 'POST',

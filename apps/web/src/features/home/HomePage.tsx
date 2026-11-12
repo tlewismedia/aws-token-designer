@@ -18,7 +18,7 @@ export default function HomePage() {
         all in your browser.
       </p>
       <ul className="marketing-list">
-        <li>Upload your own art (PNG, JPEG, WebP up to 10 MB)</li>
+        <li>Upload your own art (PNG, JPEG, WebP, GIF up to 10 MB)</li>
         <li>AI-generated tokens from a prompt (Stability AI)</li>
         <li>7×9 print sheet — 63 tokens per page</li>
       </ul>
