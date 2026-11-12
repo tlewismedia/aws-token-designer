@@ -42,13 +42,6 @@
   margin-top: 37px;
 }
 
-.promo__for_who_list {
-  margin-top: 40px;
-  line-height: 1.5;
-  font-weight: bold;
-  font-size: 18px;
-}
-
 .promo__steps {
   display: flex;
   justify-content: space-between;
@@ -101,12 +94,6 @@
   font-size: 18px;
   max-width: 250px;
   line-height: 1.2;
-}
-
-.promo__work_call_out {
-  font-size: 67px;
-  font-weight: bold;
-  margin-top: 20px;
 }
 
 .promo__signup {

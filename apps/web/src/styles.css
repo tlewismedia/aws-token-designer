@@ -1,10 +1,10 @@
-/* App styles + print layout (FR-11). Kept small and dependency-free. */
-
-:root {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color: #1c1e21;
-  background: #f5f6f7;
-}
+/* Port-only shared rules. The source theme lives in App.css and component
+ * chrome lives beside each component; this file is intentionally limited to:
+ *   - the global border-box reset,
+ *   - the `.loading` full-page state used while auth resolves,
+ *   - `.error-message` for inline gallery/sheet/form errors.
+ * Everything else belongs in a component stylesheet. Do not grow this file.
+ */
 
 * {
   box-sizing: border-box;
