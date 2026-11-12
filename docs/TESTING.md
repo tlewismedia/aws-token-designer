@@ -76,9 +76,11 @@ The deployed run needs the same seeded user and does not read
 What it covers: the logged-out marketing page and protected-route redirect,
 login plus navbar credits from `GET /me`, PNG upload and gallery thumbnail,
 add/remove/clear tokens, print (with `window.print` stubbed via
-`addInitScript`, after the thumbnail gate opens), image delete, logout back to
+`addInitScript`, after the thumbnail gate opens), the print-media geometry and
+hidden chrome, the inert `/buy-credits` shell, image delete, logout back to
 the marketing page, and registration with a unique per-run
 `e2e+<timestamp>@example.com` address (the pre-sign-up trigger auto-confirms).
+It also fails if the app requests Google Fonts, Stripe, or `/api/checkout/session`.
 
 Isolation and cleanup:
 
@@ -102,6 +104,77 @@ Actions): variables `E2E_ROLE_ARN`, `E2E_BASE_URL`, optional
 `E2E_USER_POOL_ID` and `AWS_REGION`; secrets `E2E_EMAIL`, `E2E_PASSWORD`. It
 skips when the variables are absent, and the run step exits 0 when the secrets
 are absent.
+
+## UI parity and print checks (M7)
+
+The port keeps the Firebase source markup and CSS (ADR-0011) while adapting the
+behavior to the AWS contracts. Run these checks after any UI change.
+
+Automated (offline):
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build
+
+# Must print nothing (no external font hosts, no Stripe publishable key).
+grep -R "fonts.googleapis\|fonts.gstatic\|pk_test" apps/web/src infra -n
+```
+
+The web component tests cover auth errors, the builder/gallery, the 63-token
+cap, both image forms, token-sheet print readiness, and the billing/dashboard
+page states. The Playwright smoke additionally asserts, while emulating print
+media, that `.printable` is 720 × 960 CSS px (7.5in × 10in), the grid has 63
+cells, and the navbar/library/sheet header are hidden. It also checks that
+`/buy-credits` renders the inert shell and that no Stripe or Google Fonts
+request is made.
+
+Print preview (manual):
+
+1. Sign in, add at least one token, and wait for Print to enable.
+2. Open the browser print dialog. The preview is US Letter with a 7.5in × 10in
+   sheet at a 0.5in margin, a 7×9 grid (63 cells), no navbar/library/sheet
+   header, and no per-token remove buttons.
+3. The sheet may scale to the dialog's default "fit to page"; disable browser
+   headers/footers if you are comparing it with the source.
+
+External request and billing checks:
+
+- `/buy-credits` shows “Credit purchasing is coming soon.” and makes no
+  `POST /api/checkout/session`, `js.stripe.com`, or `api.stripe.com` request.
+- The app loads no `fonts.googleapis.com` / `fonts.gstatic.com` resources.
+  Fonts come from the bundled `assets/*.woff2` files.
+- CloudFront's CSP sets `font-src 'self'` (see
+  `infra/modules/cloudfront/main.tf`). `connect-src`/`frame-src` still reserve
+  Stripe origins for a future purchase UI; the SPA does not use them in v1.
+
+Visual comparison recorded **2026-11-12** against the live source app
+(`https://game-token-generator.web.app`) at 1440 × 900 and 700 × 900:
+
+- Home/marketing: identical layout, typography, images, spacing, and mobile
+  stacking. The only difference was Vite's dev-only React Query devtools button,
+  which is absent from the production build.
+- Login: identical.
+- Register: the port intentionally adds a Confirm password field and inline
+  errors (the source has email/password only). This is a safety/UX deviation,
+  not a styling drift.
+- Signed-in builder/gallery/sheet/print: not captured in this pass because no
+  dev backend/`.env.local` was available. Run the Playwright smoke against the
+  dev stack (or capture side-by-side screenshots after deploying) as the
+  remaining human check.
+
+Deploy check (human; this ticket does not apply Terraform or deploy):
+
+```sh
+./scripts/deploy-web.sh dev
+WEB=$(terraform -chdir=infra/envs/dev output -raw web_url)
+curl -s "$WEB/" | grep -o '<title>[^<]*</title>'        # Token Shoppe beta
+curl -sI "$WEB/" | grep -i 'content-security-policy'     # includes font-src 'self'
+```
+
+After deploying, open DevTools → Network on `/` and `/login`: the only font
+requests are same-origin `*.woff2`; there is no Google Fonts or Stripe traffic.
 
 ## Manual smoke checklist
 
@@ -223,9 +296,9 @@ per-environment webhook endpoints; price `price_1SKV9BRJneXS2FG6lEiXjYKH`, $1 �
 
 **Drill log — 2026-11-11 (dev and prod):** real test-mode payment with card
 `4242 4242 4242 4242` → redirect to `/return?session_id=…` → webhook fulfilled →
-payment `succeeded`, credits `10 → 20`, return page shows "Payment confirmed —
-10 credits added"; replaying the same Stripe event id → `200`, credits
-unchanged.
+payment `succeeded`, credits `10 → 20`, return page showed the pre-M7 copy
+"Payment confirmed — 10 credits added"; replaying the same Stripe event id →
+`200`, credits unchanged.
 
 ### Offline tests
 
@@ -324,14 +397,25 @@ aws dynamodb get-item --table-name "$TABLE" \
 
 ### Return page states
 
-`GET /checkout/session/{id}` returns only `{ status, creditsGranted }`:
+`GET /checkout/session/{id}` returns only `{ status, creditsGranted }`. The page
+uses the source Return copy, adapted to that response:
 
-- `succeeded` → “Payment confirmed — N credits added.”
-- `pending` → “Credits are being applied…”; the page polls a few times, then
-  offers a Refresh button.
+- `succeeded` → “Payment received and credits have been applied. A confirmation
+  email will be sent to you. If you have any questions, please email
+  `orders@example.com`.”
+- `pending` → “Payment received. We are still processing your credits.”; the
+  page polls a few times, then offers a Refresh button.
 - `failed` → fulfillment-failed message with the `orders@example.com` contact.
-- `403`/`404`/missing `session_id` → unknown order (no payment data).
-- Unexpected network/API error → retryable error message.
+- `403`/`404`/missing `session_id` → unknown order / needs a session id (no
+  payment data).
+- Unexpected network/API error → retryable error message with Refresh.
+
+Documented deviations from the source page: the status response does not
+include `customer_email`, so the copy says “sent to you” instead of naming an
+address; and the source Stripe `open`/`expired` session states are not exposed.
+Purchases are disabled in v1, so an `open` session is not reachable; the status
+endpoint reports only the payment record it created (`succeeded`, `pending`, or
+`failed`).
 
 ## CloudFront hosting (Phase 5)
 
@@ -614,3 +698,8 @@ is **not applied**; the new alarm matrix is defined but the drill is run by the
 operator after apply. Prod smoke is limited to the no-key paths listed above
 (backlog #29/#34). Update this section after the prod apply and the alarm/budget
 drill, with dates and results.
+
+M7 UI parity (2026-11-12): the source-faithful UI, docs, ADR-0011, and E2E
+assertions are merged; **no deploy was performed from this worktree**. After
+`./scripts/deploy-web.sh dev`, run the "UI parity and print checks (M7)" deploy
+check and refresh this section with the date/result.

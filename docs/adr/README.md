@@ -29,6 +29,7 @@ Each ADR uses the Nygard format:
 | [0008](0008-cost-guardrails.md) | Cost guardrails and AI caps | Accepted |
 | [0009](0009-diagram-tooling.md) | Diagram tooling: living Mermaid views + polished PlantUML snapshot | Superseded by 0010 |
 | [0010](0010-d2-standard-drop-plantuml.md) | Standardize on D2 for diagrams, drop PlantUML | Accepted |
+| [0011](0011-port-source-ui-markup-css.md) | Port the source UI markup and CSS | Accepted |
 
 ## Template
 

@@ -132,7 +132,7 @@ flowchart TB
   SPA -->|"Auth"| Cognito
   API -->|"JWT validation"| Cognito
   SPA -->|"Presigned PUT/GET"| Media
-  SPA -->|"Stripe.js"| Stripe
+  SPA -->|"Stripe.js (later; purchases disabled)"| Stripe
   Stripe -->|"Webhook"| API
   ApiFn --> Obs
   Worker --> Obs
@@ -158,8 +158,8 @@ flowchart TB
 | FR-1 | Register, login, logout with email/password | Cognito user created; session persists; logout clears session and query cache |
 | FR-2 | Show user profile and credit balance | Navbar shows credits from `GET /api/me` |
 | FR-3 | Create default sheet on first login | Profile bootstrap creates `PROFILE` + one `SHEET` idempotently |
-| FR-4 | Generate an image from name, description, style, negative prompt | Job created; image appears in gallery after polling |
-| FR-5 | Upload an image via drag/drop or file picker | Max 10 MB; image types only; thumbnail created; appears in gallery |
+| FR-4 | Generate an image from name, description, style, negative prompt | Source-parity form; job created and polled; image appears in the gallery; moderation/rate-limit errors shown safely |
+| FR-5 | Upload an image via drag/drop or file picker | Source-parity form; max 10 MB; PNG/JPEG/WebP/GIF only; EXIF stripped, thumbnail created, appears in gallery |
 | FR-6 | List generated/uploaded images with thumbnails | Gallery loads presigned thumb URLs |
 | FR-7 | Add an image to the latest sheet | Max 63 tokens; duplicate adds allowed as in source |
 | FR-8 | Remove a token from the sheet | Removes by index; sheet updates |
@@ -183,7 +183,7 @@ flowchart TB
 | NFR-7 | Maintainability | TypeScript strict; shared zod schemas; unit + integration + E2E tests |
 | NFR-8 | Accessibility | WCAG 2.1 AA for new/modified UI; preserve current baseline |
 | NFR-9 | Data retention | Images retained until user deletes; no PII beyond email |
-| NFR-10 | Privacy | No analytics/tracking; no third-party scripts beyond Stripe.js |
+| NFR-10 | Privacy | No analytics/tracking; no third-party scripts (Stripe.js is not loaded while purchases are disabled) |
 
 ---
 
@@ -252,8 +252,10 @@ aws-token-designer/
 ### 6.2 Frontend
 
 - **Vite + React 19 + TypeScript strict.**
+- **Source-parity UI (M7, ADR-0011):** markup and component CSS are ported from the Firebase app. The global theme (`App.css`), per-component styles, source images, logo, and **Token Shoppe beta** branding follow the reference. `styles.css` is limited to the shared box-sizing reset, `.loading`, and `.error-message`; dead source-only rules were removed.
+- **Self-hosted fonts:** Lora, IM Fell English, IM Fell DW Pica SC, and Just Another Hand are bundled from `@fontsource`. The CSP is `font-src 'self'`, so the browser makes no `fonts.googleapis.com` / `fonts.gstatic.com` requests.
 - **React Router v7** with the current route map: `/`, `/login`, `/register`, `/dashboard` (under construction), `/buy-credits`, `/return`, `*`.
-- **Amplify Auth v6** (`aws-amplify/auth` only) for Cognito.
+- **Amplify Auth v6** (`aws-amplify/auth` only) for Cognito. Auth pages use inline errors instead of source `alert`s, and registration adds a Confirm password field (safety deviations).
 - **TanStack Query v5** for all server state.
 - **Zod** for API response validation where useful; shared request/response schemas in `packages/shared`.
 - **No Zustand for server state.** Use React state for modal open/close and local UI.
@@ -264,7 +266,11 @@ aws-token-designer/
 - **Mutations:** invalidate related queries; optimistic updates for add/remove token and clear sheet.
 - **API client:** `fetch` wrapper that attaches `Authorization: Bearer <idToken>`, parses JSON, throws typed errors, and signs out on 401.
 - **Vite dev proxy:** `/api` → dev execute-api or CloudFront URL, so the browser sees same-origin requests.
-- **Env vars (public only):** `VITE_AWS_REGION`, `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_STRIPE_PUBLISHABLE_KEY`.
+- **Builder and gallery:** source navbar/account/credit chrome, 150px gallery thumbnails, source generate/upload modals, and the 7×9 token sheet. Add-to-sheet is hidden once the server-enforced 63-token cap is reached.
+- **Print:** source 7.5in × 10in printable area at a 0.5in margin, 63-cell grid, with the navbar, library, sheet header, and remove controls hidden. Print waits for thumbnails to load.
+- **Responsive:** ≤700px stacks the builder (column-reverse) and narrows the sheet/grid, matching the source media queries.
+- **Billing shells:** `/buy-credits` keeps the source page shell but is inert — no Stripe.js, publishable key, or checkout request. `/return` maps the AWS status endpoint to the source success/pending/failure copy; it has no `customer_email` and no Stripe `open`/`expired` states (purchases are disabled).
+- **Env vars (public only):** `VITE_AWS_REGION`, `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`. No Stripe publishable key is configured while purchases are disabled.
 
 ### 6.3 Auth Flow
 
@@ -738,8 +744,10 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 VITE_AWS_REGION=us-west-2
 VITE_COGNITO_USER_POOL_ID=<pool-id>
 VITE_COGNITO_CLIENT_ID=<client-id>
-VITE_STRIPE_PUBLISHABLE_KEY=<pk_test_or_live>
 ```
+
+No Stripe publishable key is configured in v1: the purchase UI is disabled and
+the SPA never initialises Stripe.js.
 
 ### B. SSM Parameters (SecureString, Out-of-Band)
 

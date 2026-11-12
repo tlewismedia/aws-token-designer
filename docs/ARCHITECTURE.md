@@ -133,7 +133,7 @@ flowchart TB
   SPA -->|"Auth"| Cognito
   API -->|"JWT validation"| Cognito
   SPA -->|"Presigned PUT/GET"| Media
-  SPA -->|"Stripe.js"| Stripe
+  SPA -->|"Stripe.js (later; purchases disabled)"| Stripe
   Stripe -->|"Webhook"| API
   ApiFn --> Obs
   Worker --> Obs
@@ -143,7 +143,7 @@ flowchart TB
 
 | Block | Responsibility |
 |---|---|
-| **SPA** | React UI, auth state, TanStack Query cache, API client, print |
+| **SPA** | Source-parity Token Shoppe UI, auth state, TanStack Query cache, API client, print |
 | **CloudFront** | Serve SPA from S3; proxy `/api/*` to API Gateway; security headers |
 | **S3 web** | Static Vite build; private; OAC |
 | **API Gateway** | HTTP routing, Cognito JWT authorizer, throttling, access logs |
@@ -154,6 +154,28 @@ flowchart TB
 | **Cognito** | User pool, email sign-in, JWT issuance |
 | **SSM** | Stripe/Stability secrets, generation kill switch |
 | **CloudWatch/SNS** | Logs, metrics, alarms, email notifications |
+
+### 5.3 Frontend
+
+The SPA is branded **Token Shoppe beta** in the document title, logo, and
+marketing copy; `Token Designer` remains the project/repo name. Markup and CSS
+are ported from the Firebase source app (ADR-0011) with these adaptations:
+
+- **Fonts:** Lora, IM Fell English, IM Fell DW Pica SC, and Just Another Hand
+  are bundled from `@fontsource`. The CloudFront CSP (`font-src 'self'`) blocks
+  external font hosts, and the build makes no Google Fonts requests.
+- **Shell:** source navbar, account menu, credit balance, marketing page, auth
+  forms, builder, gallery, and modals. Mobile (≤700px) collapses the builder to
+  a single column and narrows the token sheet.
+- **Builder and gallery:** source 150px thumbnails and overlay actions; add to
+  sheet is hidden once the server-enforced 63-token cap is reached.
+- **Print:** 7.5in × 10in printable area at a 0.5in margin, 7×9 (63-cell) grid,
+  navbar/library/sheet header/remove controls hidden. Print is enabled only
+  after the resolved thumbnails have loaded.
+- **Billing:** `/buy-credits` is an inert source-style shell; no Stripe.js,
+  publishable key, or checkout call is made. `/return` renders the source
+  success/pending/failure copy from the AWS status endpoint, without
+  `customer_email` or Stripe `open`/`expired` states.
 
 ---
 
