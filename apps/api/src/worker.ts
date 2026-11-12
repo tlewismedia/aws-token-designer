@@ -64,16 +64,19 @@ export function generatedImageKeys(sub: string, imageId: string) {
 function jobToImage(job: {
   sub: string
   imageId: string
+  name: string
   prompt: string
   style?: Job['style']
 }): Image {
-  const prompt = job.prompt.trim()
-  const name = prompt.slice(0, 100).trim() || 'Generated image'
+  // The user's name labels the image; the prompt is retained as metadata
+  // (bounded by the IMAGE schema's 500-char description cap).
+  const description = job.prompt.slice(0, 500)
   const { fullKey, thumbKey } = generatedImageKeys(job.sub, job.imageId)
   return {
     id: job.imageId,
     sub: job.sub,
-    name,
+    name: job.name,
+    description,
     style: job.style,
     status: 'ready',
     fullKey,
@@ -220,6 +223,7 @@ export async function runGenerationJob(rawEvent: unknown): Promise<void> {
     const image = jobToImage({
       sub,
       imageId: job.imageId,
+      name: job.name,
       prompt: job.prompt,
       style: job.style,
     })

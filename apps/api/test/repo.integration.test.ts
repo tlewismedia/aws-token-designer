@@ -181,6 +181,7 @@ describe.skipIf(!enabled)('Repo against DynamoDB Local', () => {
       type: 'generation' as const,
       status: 'pending' as const,
       imageId: `img-${id}`,
+      name: 'Goblin Chief',
       prompt: 'A goblin chief',
       createdAt: '2026-01-01T00:00:00.000Z',
       expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,

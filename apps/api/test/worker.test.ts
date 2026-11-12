@@ -72,7 +72,8 @@ const jobItem = {
   type: 'generation' as const,
   status: 'pending' as const,
   imageId: 'img-1',
-  prompt: 'A goblin chief',
+  name: 'Goblin Chief',
+  prompt: 'A goblin chief brandishing a rusty axe',
   negativePrompt: 'blurry',
   style: 'anime' as const,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -147,7 +148,7 @@ describe('runGenerationJob', () => {
     )
     expect(stabilityMock.generateStabilityImage).toHaveBeenCalledWith({
       apiKey: 'sk-test-key',
-      prompt: 'A goblin chief',
+      prompt: 'A goblin chief brandishing a rusty axe',
       negativePrompt: 'blurry',
       style: 'anime',
     })
@@ -172,7 +173,8 @@ describe('runGenerationJob', () => {
       expect.objectContaining({
         id: 'img-1',
         sub: 'user-1',
-        name: 'A goblin chief',
+        name: 'Goblin Chief',
+        description: 'A goblin chief brandishing a rusty axe',
         style: 'anime',
         status: 'ready',
         fullKey: 'users/user-1/images/img-1/full.png',
@@ -196,6 +198,24 @@ describe('runGenerationJob', () => {
     expect(metric?.Stage).toBe('dev')
     expect(metric?.GenerationCount).toBe(1)
     expect(metric?.EstimatedAICost).toBe(0.08)
+    logSpy.mockRestore()
+  })
+
+  it('keeps the user name and caps image.description at 500 characters', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    repoStub.getJob.mockResolvedValue({
+      ...jobItem,
+      name: 'Very long description',
+      prompt: 'd'.repeat(1000),
+    })
+    await runGenerationJob(event)
+    const image = repoStub.putImage.mock.calls[0][0] as {
+      name: string
+      description?: string
+    }
+    expect(image.name).toBe('Very long description')
+    expect(image.description).toHaveLength(500)
+    expect(repoStub.markJobSucceeded).toHaveBeenCalledWith('user-1', 'job-1', 'img-1')
     logSpy.mockRestore()
   })
 
