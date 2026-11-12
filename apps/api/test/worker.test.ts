@@ -50,14 +50,20 @@ vi.mock('../src/lib/stability.js', () => {
       this.status = status
     }
   }
-  return { ...stabilityMock, StabilityError }
+  class StabilityModerationError extends StabilityError {
+    constructor(status: number) {
+      super(status)
+      this.name = 'StabilityModerationError'
+    }
+  }
+  return { ...stabilityMock, StabilityError, StabilityModerationError }
 })
 
 const processImageMock = vi.hoisted(() => ({ processImage: vi.fn() }))
 vi.mock('../src/lib/process-image.js', () => processImageMock)
 
 import { GENERATION_ERRORS, runGenerationJob } from '../src/worker.js'
-import { StabilityError } from '../src/lib/stability.js'
+import { StabilityError, StabilityModerationError } from '../src/lib/stability.js'
 
 const jobItem = {
   PK: 'USER#user-1',
@@ -261,6 +267,21 @@ describe('runGenerationJob', () => {
     expect(metric?.GenerationFailures).toBe(1)
     expect(metric?.FailureCode).toBe(GENERATION_ERRORS.failed)
     expect(metric?.GenerationCount).toBeUndefined()
+    logSpy.mockRestore()
+  })
+
+  it('marks moderation rejections with a distinct error code', async () => {
+    stabilityMock.generateStabilityImage.mockRejectedValue(new StabilityModerationError(403))
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    await runGenerationJob(event)
+    expect(repoStub.markJobFailed).toHaveBeenCalledWith(
+      'user-1',
+      'job-1',
+      GENERATION_ERRORS.moderated,
+    )
+    expect(s3Mock.putObject).not.toHaveBeenCalled()
+    const metric = findMetricLine(logSpy)
+    expect(metric?.FailureCode).toBe(GENERATION_ERRORS.moderated)
     logSpy.mockRestore()
   })
 

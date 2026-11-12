@@ -17,7 +17,7 @@ vi.mock('../contexts/auth-context', () => ({
   useAuth: () => ({ user: { sub: 'user-1' } }),
 }))
 
-import { useGenerationJob } from './useGeneration'
+import { generationErrorMessage, useGenerationJob } from './useGeneration'
 
 const baseJob = {
   id: 'job-1',
@@ -116,5 +116,12 @@ describe('useGenerationJob', () => {
       await vi.advanceTimersByTimeAsync(JOB_POLL_INTERVAL_MS * 3)
     })
     expect(mocks.apiFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('generationErrorMessage', () => {
+  it('explains provider content moderation separately from generic failure', () => {
+    expect(generationErrorMessage('GENERATION_MODERATED')).toMatch(/content filter/i)
+    expect(generationErrorMessage('GENERATION_FAILED')).toMatch(/failed/i)
   })
 })

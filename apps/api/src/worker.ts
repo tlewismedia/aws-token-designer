@@ -19,12 +19,13 @@ import { emitGenerationFailure, emitGenerationMetrics } from './lib/metrics.js'
 import { processImage } from './lib/process-image.js'
 import { deleteObjects, putObject } from './lib/s3.js'
 import { getParameter } from './lib/ssm.js'
-import { generateStabilityImage } from './lib/stability.js'
+import { generateStabilityImage, StabilityModerationError } from './lib/stability.js'
 
 /** Safe error codes stored on the JOB item (never provider details). */
 export const GENERATION_ERRORS = {
   disabled: 'GENERATION_DISABLED',
   failed: 'GENERATION_FAILED',
+  moderated: 'GENERATION_MODERATED',
 } as const
 
 export interface GenerationJobEvent {
@@ -188,9 +189,19 @@ export async function runGenerationJob(rawEvent: unknown): Promise<void> {
       negativePrompt: job.negativePrompt,
       style: job.style,
     })
-  } catch {
-    log({ jobId, message: 'stability request failed' })
-    await failSafe(GENERATION_ERRORS.failed)
+  } catch (err) {
+    // Safe fields only: status + error class, never the provider body/key.
+    log({
+      jobId,
+      message: 'stability request failed',
+      status: (err as { status?: number }).status,
+      errorName: err instanceof Error ? err.name : 'unknown',
+    })
+    await failSafe(
+      err instanceof StabilityModerationError
+        ? GENERATION_ERRORS.moderated
+        : GENERATION_ERRORS.failed,
+    )
     return
   }
   emitGenerationMetrics({ stage })

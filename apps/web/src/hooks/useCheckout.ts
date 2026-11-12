@@ -9,7 +9,7 @@ import type { CheckoutSessionStatusResponse } from '@aws-token-designer/shared'
 import {
   CHECKOUT_POLL_INTERVAL_MS,
   CHECKOUT_POLL_MAX_ATTEMPTS,
-} from '@aws-token-designer/shared'
+} from '@aws-token-designer/shared/constants'
 import { useAuth } from '../contexts/auth-context'
 import { apiFetch } from '../lib/api'
 import { queryKeys } from '../lib/query-client'

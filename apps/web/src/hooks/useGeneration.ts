@@ -8,7 +8,7 @@ import type {
   GenerateImageResponse,
   JobResponse,
 } from '@aws-token-designer/shared'
-import { JOB_POLL_INTERVAL_MS, JOB_POLL_MAX_ATTEMPTS } from '@aws-token-designer/shared'
+import { JOB_POLL_INTERVAL_MS, JOB_POLL_MAX_ATTEMPTS } from '@aws-token-designer/shared/constants'
 import { useAuth } from '../contexts/auth-context'
 import { apiFetch } from '../lib/api'
 import { queryKeys } from '../lib/query-client'
@@ -97,6 +97,8 @@ export function generationErrorMessage(code: string | undefined): string {
       return 'Image generation is temporarily disabled. Please try again later.'
     case 'RATE_LIMITED':
       return 'You have reached the daily generation limit (20). Try again tomorrow.'
+    case 'GENERATION_MODERATED':
+      return 'The prompt was rejected by the image provider’s content filter. Try a different description.'
     case 'GENERATION_FAILED':
     default:
       return 'Image generation failed. Please try again.'

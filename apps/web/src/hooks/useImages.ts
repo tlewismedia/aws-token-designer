@@ -7,7 +7,7 @@ import type {
   ImagesResponse,
   UploadUrlResponse,
 } from '@aws-token-designer/shared'
-import { MAX_UPLOAD_BYTES, IMAGE_CONTENT_TYPES } from '@aws-token-designer/shared'
+import { MAX_UPLOAD_BYTES, IMAGE_CONTENT_TYPES } from '@aws-token-designer/shared/constants'
 import { useAuth } from '../contexts/auth-context'
 import { apiFetch, ApiError } from '../lib/api'
 import { queryKeys } from '../lib/query-client'

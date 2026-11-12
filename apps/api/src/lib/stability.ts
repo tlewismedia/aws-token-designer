@@ -22,6 +22,14 @@ export class StabilityError extends Error {
   }
 }
 
+/** The provider rejected the prompt via its content-moderation system. */
+export class StabilityModerationError extends StabilityError {
+  constructor(status: number) {
+    super(status)
+    this.name = 'StabilityModerationError'
+  }
+}
+
 export interface StabilityRequest {
   apiKey: string
   prompt: string
@@ -67,6 +75,22 @@ export async function generateStabilityImage(input: StabilityRequest): Promise<B
   }
 
   if (!res.ok) {
+    // Stability returns {"name":"content_moderation", ...} with 403 when the
+    // prompt is rejected. Surface that distinctly so the UI can explain it;
+    // never propagate the provider body or its id.
+    let providerName: string | undefined
+    let providerText = ''
+    try {
+      providerText = await res.text()
+      providerName = (JSON.parse(providerText) as { name?: string }).name
+    } catch {
+      // Non-JSON error body: treated as a generic provider failure.
+    }
+    const moderated =
+      providerName === 'content_moderation' || /content moderation/i.test(providerText)
+    if (moderated) {
+      throw new StabilityModerationError(res.status)
+    }
     throw new StabilityError(res.status)
   }
   const bytes = Buffer.from(await res.arrayBuffer())

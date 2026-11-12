@@ -383,6 +383,10 @@ SPA deep links use a CloudFront Function on the default behavior, not
 `custom_error_response`; that deliberate deviation keeps API 401/403/404
 statuses intact. See "Phase 5 additions" in docs/TERRAFORM.md.
 
+**Moderation failures.** A prompt rejected by Stability's content filter returns `403 {"name":"content_moderation"}`; the worker stores `GENERATION_MODERATED` and the modal explains that the prompt was filtered (instead of a generic failure). Drill: submit a disallowed prompt and confirm the job ends `failed` / `GENERATION_MODERATED`.
+
+**Web bundle / CSP.** The web app must not pull zod into the bundle (zod v4 probes `new Function("")`, which the CSP correctly blocks). Runtime constants are imported from `@aws-token-designer/shared/constants`; `grep -c Cloudflare apps/web/dist/assets/index-*.js` should be 0 and the browser console should show no `script-src` `eval` violation.
+
 ## Alarm and budget drill (Phase 6)
 
 All alarms route to the SNS alerts topic and therefore to `alert_email`.
