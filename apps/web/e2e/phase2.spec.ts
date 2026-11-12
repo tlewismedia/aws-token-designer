@@ -124,9 +124,9 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
       }
     })
 
-    // 1. Logged-out marketing page, protected route redirect.
+    // 1. Logged-out promotion page, protected route redirect.
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'AWS Token Designer' })).toBeVisible()
+    await expect(page.getByText(/fastest, easiest way to create game tokens/i)).toBeVisible()
     await expect(page.getByRole('navigation')).toHaveCount(0)
 
     await page.goto('/dashboard')
@@ -226,10 +226,10 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await deleted
     await expect(figure).toHaveCount(0)
 
-    // 9. Logout returns to the marketing page.
+    // 9. Logout returns to the promotion page.
     await page.getByRole('button', { name: 'Account menu' }).click()
     await page.getByRole('menuitem', { name: 'Logout' }).click()
-    await expect(page.getByRole('heading', { name: 'AWS Token Designer' })).toBeVisible()
+    await expect(page.getByText(/fastest, easiest way to create game tokens/i)).toBeVisible()
     await expect(page.getByRole('navigation')).toHaveCount(0)
     await expect(page.locator('.credit-amount')).toHaveCount(0)
   })
@@ -255,6 +255,6 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
 
     await page.getByRole('button', { name: 'Account menu' }).click()
     await page.getByRole('menuitem', { name: 'Logout' }).click()
-    await expect(page.getByRole('heading', { name: 'AWS Token Designer' })).toBeVisible()
+    await expect(page.getByText(/fastest, easiest way to create game tokens/i)).toBeVisible()
   })
 })
