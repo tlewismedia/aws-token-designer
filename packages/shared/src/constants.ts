@@ -115,8 +115,8 @@ export const DEFAULT_CREDITS_PER_PURCHASE = 10
 export const CHECKOUT_POLL_INTERVAL_MS = 2000
 export const CHECKOUT_POLL_MAX_ATTEMPTS = 5
 
-/** Name of the sheet created on first login. */
-export const DEFAULT_SHEET_NAME = 'Default Sheet'
+/** Name of the sheet created on first login (source default). */
+export const DEFAULT_SHEET_NAME = 'New Collection'
 
 /** Sheet template id (parity with the source app). */
 export const DEFAULT_SHEET_TEMPLATE = 'default'

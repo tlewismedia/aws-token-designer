@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPrint, faTrash } from '@fortawesome/free-solid-svg-icons'
-import type { ImageWithUrls } from '@aws-token-designer/shared'
+import { DEFAULT_SHEET_NAME, type ImageWithUrls } from '@aws-token-designer/shared'
 import Button from '../../components/Button/Button'
 import {
   useSheets,
@@ -66,7 +66,7 @@ export default function TokenSheet() {
   }
 
   const handleAdd = () => {
-    createSheet.mutate('Default Sheet')
+    createSheet.mutate(DEFAULT_SHEET_NAME)
   }
 
   const handleClear = () => {
