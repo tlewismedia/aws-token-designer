@@ -51,7 +51,8 @@ describe('CreditBalance', () => {
 
     renderCreditBalance({ sub: 'sub-1', email: 'dev@example.com' })
 
-    expect(screen.getByLabelText('Credits')).toBeInTheDocument()
+    const coin = screen.getByLabelText('Credits')
+    expect(coin.querySelector('svg')).toBeInTheDocument()
     expect(screen.getByText('42')).toHaveClass('credit-amount')
     expect(screen.getByRole('tooltip')).toHaveTextContent('token purchasing coming soon')
 
