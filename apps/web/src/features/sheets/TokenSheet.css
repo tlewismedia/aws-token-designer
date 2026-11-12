@@ -1,0 +1,96 @@
+.token-sheet-container {
+  background: white;
+  border: none;
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  align-self: center;
+  width: 400px;
+  padding: 10px 10px 20px 10px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  width: 378px;
+  gap: 6px;
+}
+
+.sheet-info {
+  font-size: 9px;
+  line-height: 0.3;
+}
+
+.empty-token {
+  background: gray;
+  border-radius: 50%;
+  opacity: 0.5;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.top-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.top-buttons .button {
+  background-color: #000;
+}
+
+.top-buttons .button:hover:not(:disabled) {
+  background-color: #111;
+}
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0; /* remove browser margins */
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 8.5in;
+    height: 11in;
+  }
+
+  /* A full-page wrapper that centers your fixed-width block */
+  .printable {
+    width: 7.5in;
+    height: 10in;
+    margin: 0.5in !important;
+    display: block !important;
+    box-sizing: border-box; /* so border/padding don't change width */
+    transform: none !important;
+    zoom: 1 !important; /* helps avoid weird shrink in some cases */
+  }
+
+  .image-grid {
+    box-sizing: border-box;
+    width: 7.55in;
+    height: 10.1in;
+    margin-left: -0.09in;
+    margin-top: -0.07in;
+    gap: 0.02in 0.01in;
+  }
+}
+
+@media (max-width: 700px) {
+  .image-grid {
+    width: 220px;
+    margin: auto;
+  }
+
+  .token-sheet-container {
+    width: 246px;
+  }
+}

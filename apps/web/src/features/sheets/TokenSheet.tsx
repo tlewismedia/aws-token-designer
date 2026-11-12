@@ -1,47 +1,25 @@
 // Token sheet (FR-8, FR-9, FR-11): 7×9 grid = up to 63 tokens, print-ready.
+// Markup and print CSS follow the source app (#63). Removal stays index-aligned
+// with `sheet.images`, including ids whose image is no longer in the gallery.
 
 import { useMemo, useRef, useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPrint, faTrash } from '@fortawesome/free-solid-svg-icons'
 import type { ImageWithUrls } from '@aws-token-designer/shared'
-import { useSheets, useRemoveToken, useClearSheet, useCreateSheet, MAX_TOKENS } from '../../hooks/useSheets'
+import Button from '../../components/Button/Button'
+import {
+  useSheets,
+  useRemoveToken,
+  useClearSheet,
+  useCreateSheet,
+  MAX_TOKENS,
+} from '../../hooks/useSheets'
 import { useImages } from '../../hooks/useImages'
+import TokenSheetToken from './TokenSheetToken'
+import './TokenSheet.css'
 
-function Token({
-  url,
-  index,
-  onRemove,
-  onImageReady,
-}: {
-  url: string | undefined
-  index: number
-  onRemove: (index: number) => void
-  onImageReady: () => void
-}) {
-  return (
-    <div className="token">
-      {url ? (
-        <img
-          src={url}
-          alt=""
-          loading="eager"
-          decoding="sync"
-          onLoad={onImageReady}
-          onError={onImageReady}
-        />
-      ) : (
-        // The sheet references an image the gallery no longer has (deleted or
-        // not loaded yet): keep a tile so indices stay aligned with the
-        // server-side `sheet.images` array.
-        <div className="token-placeholder" aria-label="Unresolved token" />
-      )}
-      <button
-        className="remove-token"
-        onClick={() => onRemove(index)}
-        aria-label={`Remove token ${index + 1}`}
-      >
-        ×
-      </button>
-    </div>
-  )
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : 'Please try again.'
 }
 
 export default function TokenSheet() {
@@ -58,12 +36,6 @@ export default function TokenSheet() {
     return map
   }, [images.data])
 
-  const imageUrls = (sheet?.images ?? [])
-    .map((id) => imageMap.get(id)?.thumbUrl)
-    .filter((url): url is string => Boolean(url))
-    .slice(0, MAX_TOKENS)
-  const count = imageUrls.length
-
   // One tile per entry in `sheet.images` — including unresolved ids — so the
   // remove handler receives the index the server will act on.
   const tokens = (sheet?.images ?? []).slice(0, MAX_TOKENS).map((imageId, index) => ({
@@ -71,6 +43,7 @@ export default function TokenSheet() {
     index,
     url: imageMap.get(imageId)?.thumbUrl,
   }))
+  const count = tokens.filter((token) => Boolean(token.url)).length
   const emptyCount = Math.max(0, MAX_TOKENS - tokens.length)
 
   // Wait for thumbnails before opening the print dialog (FR-11).
@@ -78,7 +51,7 @@ export default function TokenSheet() {
   // needs a setState-in-effect reset (react-hooks/set-state-in-effect).
   const [loaded, setLoaded] = useState<{ sig: string; count: number }>({ sig: '', count: 0 })
   const loadedIndexes = useRef<{ sig: string; seen: Set<number> }>({ sig: '', seen: new Set() })
-  const signature = useMemo(() => imageUrls.join('|'), [imageUrls])
+  const signature = useMemo(() => tokens.map((token) => token.url ?? '').join('|'), [tokens])
   const ready = count === 0 || (loaded.sig === signature && loaded.count >= count)
 
   const handleImageReady = (index: number) => {
@@ -92,15 +65,34 @@ export default function TokenSheet() {
     setLoaded({ sig: signature, count: current.seen.size })
   }
 
+  const handleAdd = () => {
+    createSheet.mutate('Default Sheet')
+  }
+
+  const handleClear = () => {
+    clearSheet.mutate()
+  }
+
+  const handleDelete = async (_sheetId: string, index: number) => {
+    try {
+      await removeToken.mutateAsync(index)
+    } catch {
+      // The mutation error is rendered above; swallow the rejection so the
+      // click handler does not produce an unhandled promise rejection.
+    }
+  }
+
   const handlePrint = () => {
     window.print()
   }
+
+  const actionError = removeToken.error ?? clearSheet.error
 
   if (sheets.isLoading || images.isLoading) {
     return (
       <div className="token-sheet-container">
         <h2>Token Sheet</h2>
-        <p className="loading">Loading…</p>
+        <p>Loading...</p>
       </div>
     )
   }
@@ -109,7 +101,9 @@ export default function TokenSheet() {
     return (
       <div className="token-sheet-container">
         <h2>Token Sheet</h2>
-        <p className="form-error">Failed to load the token sheet. Try refreshing.</p>
+        <p className="error-message" role="alert">
+          Failed to load the token sheet. Try refreshing.
+        </p>
       </div>
     )
   }
@@ -118,13 +112,10 @@ export default function TokenSheet() {
     return (
       <div className="token-sheet-container">
         <h2>Token Sheet</h2>
-        <button
-          className="btn btn-primary"
-          onClick={() => createSheet.mutate('Default Sheet')}
-          disabled={createSheet.isPending}
-        >
+        <Button onClick={handleAdd} disabled={createSheet.isPending}>
           Add Token Sheet
-        </button>
+        </Button>
+        <p>No token sheets found. Create one to get started!</p>
       </div>
     )
   }
@@ -132,41 +123,51 @@ export default function TokenSheet() {
   return (
     <div className="token-sheet-container">
       <div className="sheet-header">
-        <h2>Token Sheet</h2>
         <div className="top-buttons">
-          <button className="btn" onClick={handlePrint} disabled={!ready}>
-            {ready ? 'Print' : 'Loading thumbnails…'}
-          </button>
-          <button
-            className="btn"
-            onClick={() => clearSheet.mutate()}
-            disabled={clearSheet.isPending || sheet.images.length === 0}
+          <Button
+            onClick={handleClear}
+            size="small"
+            aria-label="Clear sheet"
+            title="Clear sheet"
+            disabled={clearSheet.isPending}
           >
-            Clear
-          </button>
+            <FontAwesomeIcon icon={faTrash} />
+          </Button>
+          <Button
+            onClick={handlePrint}
+            size="small"
+            aria-label="Print"
+            disabled={!ready}
+            title={
+              ready ? 'Print sheet' : `Preparing images (${loaded.count}/${count})`
+            }
+          >
+            <FontAwesomeIcon icon={faPrint} />
+          </Button>
         </div>
       </div>
-      <div className="sheet-info">
-        <p>
-          <strong>Count:</strong> {sheet.images.length}/{MAX_TOKENS}
+
+      {actionError && (
+        <p className="error-message" role="alert">
+          Could not update the sheet: {errorText(actionError)}
         </p>
-        <p>
-          <strong>Template:</strong> {sheet.template}
-        </p>
-      </div>
+      )}
+
       <div className="printable">
         <div className="image-grid">
           {tokens.map((token) => (
-            <Token
+            <TokenSheetToken
               key={`${token.index}-${token.imageId}`}
               url={token.url}
               index={token.index}
-              onRemove={(index) => removeToken.mutate(index)}
-              onImageReady={() => handleImageReady(token.index)}
+              sheetId={sheet.id}
+              handleDelete={handleDelete}
+              onImageReady={handleImageReady}
             />
           ))}
-          {Array.from({ length: emptyCount }, (_, i) => (
-            <div key={`empty-${i}`} className="empty-token" />
+
+          {Array.from({ length: emptyCount }, (_, index) => (
+            <div key={`empty-${index}`} className="empty-token" />
           ))}
         </div>
       </div>
