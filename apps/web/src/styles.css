@@ -10,157 +10,17 @@
   box-sizing: border-box;
 }
 
-.btn {
-  padding: 8px 16px;
-  border: 1px solid #333;
-  border-radius: 5px;
-  background: #fff;
-  color: #111;
-  cursor: pointer;
-  font-size: 14px;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #000;
-  color: #fff;
-}
-
-.btn-secondary {
-  background: #fff;
-}
-
-.btn-danger {
-  border-color: #b02a37;
-  color: #b02a37;
-}
-
-.btn-small {
-  padding: 3px 8px;
-  font-size: 12px;
-}
-
 .loading {
   padding: 20px;
   color: #666;
 }
 
-.form input,
-.form select,
-.form textarea {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-error {
-  color: #b02a37;
-  font-size: 14px;
-  margin: 0;
-}
-
-.form-note {
-  color: #666;
-  font-size: 13px;
-}
-
-.error-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid #e3b3b8;
-  border-left: 4px solid #b02a37;
-  border-radius: 6px;
-  background: #fdf2f3;
-}
-
-.error-title {
-  color: #842029;
-  font-size: 15px;
-}
-
+/* Shared inline error used by the gallery and token sheet (form-specific
+   styling lives with each form component). */
 .error-message {
   margin: 0;
   color: #5c1d23;
   font-size: 14px;
-}
-
-.error-hint {
-  margin: 0;
-  color: #6c4a4d;
-  font-size: 13px;
-}
-
-/* Modal */
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-.modal {
-  background: #fff;
-  border-radius: 8px;
-  width: 380px;
-  max-width: 92vw;
-  max-height: 85vh;
-  overflow: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #eee;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.modal-close {
-  border: none;
-  background: none;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.modal-body {
-  padding: 16px;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.dropzone {
-  border: 2px dashed #bbb;
-  border-radius: 6px;
-  padding: 24px;
-  text-align: center;
-  color: #666;
-  cursor: pointer;
-}
-
-.dropzone-active {
-  border-color: #2d6a4f;
-  background: #f0f7f4;
 }
 
 .placeholder-page {
