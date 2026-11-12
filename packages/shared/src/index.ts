@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { DEFAULT_CREDITS, IMAGE_STYLES, MAX_SHEET_TOKENS } from './constants.js'
+import {
+  DEFAULT_CREDITS,
+  IMAGE_CONTENT_TYPES,
+  IMAGE_STYLES,
+  MAX_SHEET_TOKENS,
+} from './constants.js'
 
 export * from './constants.js'
 
@@ -58,6 +63,12 @@ export const jobSchema = z.object({
   status: jobStatusSchema,
   /** Target IMAGE id chosen by the API up front (worker writes it on success). */
   imageId: z.string().min(1),
+  /** Display name supplied by the user; the worker keeps it on the IMAGE. */
+  name: z.string().min(1).max(100),
+  /**
+   * Stability prompt (the user's description). The API copies `description`
+   * here internally; clients never send a separate generation prompt.
+   */
   prompt: z.string().min(1).max(1000),
   negativePrompt: z.string().max(1000).optional(),
   style: z.enum(IMAGE_STYLES).optional(),
@@ -171,7 +182,7 @@ export const uploadUrlRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500).optional(),
   style: z.enum(IMAGE_STYLES).optional(),
-  contentType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  contentType: z.enum(IMAGE_CONTENT_TYPES),
   /**
    * Exact upload size in bytes. The presigned PUT signs Content-Length, so
    * the upload must match exactly (PLAN 6.6: content-type + size
@@ -201,11 +212,13 @@ export const addTokenRequestSchema = z.object({
 export type AddTokenRequest = z.infer<typeof addTokenRequestSchema>
 
 /**
- * POST /images/generate (FR-4). The prompt is the only required field; a
- * negative prompt and style are optional and map to Stability parameters.
+ * POST /images/generate (FR-4). `name` labels the generated IMAGE; the
+ * `description` is sent to Stability as the prompt. A negative prompt and
+ * style are optional and map to Stability parameters.
  */
 export const generateImageRequestSchema = z.object({
-  prompt: z.string().trim().min(1).max(1000),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().min(1).max(1000),
   negativePrompt: z.string().trim().max(1000).optional(),
   style: z.enum(IMAGE_STYLES).optional(),
 })

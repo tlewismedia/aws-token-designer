@@ -5,6 +5,7 @@ import {
   checkoutSessionStatusResponseSchema,
   errorEnvelopeSchema,
   generateImageRequestSchema,
+  IMAGE_STYLES,
   imageSchema,
   jobSchema,
   meResponseSchema,
@@ -23,6 +24,15 @@ describe('uploadUrlRequestSchema', () => {
       size: 64000,
     })
     expect(parsed.name).toBe('Goblin Chief')
+  })
+
+  it('accepts GIF uploads', () => {
+    const parsed = uploadUrlRequestSchema.parse({
+      name: 'Waving flag',
+      contentType: 'image/gif',
+      size: 64000,
+    })
+    expect(parsed.contentType).toBe('image/gif')
   })
 
   it('rejects unsupported content types', () => {
@@ -148,29 +158,59 @@ describe('errorEnvelopeSchema', () => {
 })
 
 describe('generateImageRequestSchema', () => {
-  it('accepts a prompt with optional negative prompt and style', () => {
+  it('accepts a name + description with optional negative prompt and style', () => {
     const parsed = generateImageRequestSchema.parse({
-      prompt: 'A goblin chief',
+      name: 'Goblin chief',
+      description: 'A goblin chief brandishing a rusty axe',
       negativePrompt: 'blurry',
       style: 'anime',
     })
-    expect(parsed.prompt).toBe('A goblin chief')
+    expect(parsed.name).toBe('Goblin chief')
+    expect(parsed.description).toBe('A goblin chief brandishing a rusty axe')
     expect(parsed.style).toBe('anime')
   })
 
-  it('trims whitespace and rejects blank prompts', () => {
-    expect(generateImageRequestSchema.parse({ prompt: '  wizard  ' }).prompt).toBe('wizard')
-    expect(() => generateImageRequestSchema.parse({ prompt: '   ' })).toThrow()
-    expect(() => generateImageRequestSchema.parse({})).toThrow()
+  it('trims whitespace and rejects blank names or descriptions', () => {
+    const parsed = generateImageRequestSchema.parse({
+      name: '  Wizard  ',
+      description: '  an old wizard  ',
+    })
+    expect(parsed.name).toBe('Wizard')
+    expect(parsed.description).toBe('an old wizard')
+    expect(() =>
+      generateImageRequestSchema.parse({ name: '  ', description: 'x' }),
+    ).toThrow()
+    expect(() =>
+      generateImageRequestSchema.parse({ name: 'x', description: '  ' }),
+    ).toThrow()
+    expect(() => generateImageRequestSchema.parse({ description: 'x' })).toThrow()
+    expect(() => generateImageRequestSchema.parse({ name: 'x' })).toThrow()
   })
 
-  it('rejects overlong prompts and unknown styles', () => {
+  it('rejects overlong names/descriptions and unknown styles', () => {
     expect(() =>
-      generateImageRequestSchema.parse({ prompt: 'a'.repeat(1001) }),
+      generateImageRequestSchema.parse({ name: 'a'.repeat(101), description: 'x' }),
     ).toThrow()
     expect(() =>
-      generateImageRequestSchema.parse({ prompt: 'x', style: 'impressionist' }),
+      generateImageRequestSchema.parse({ name: 'x', description: 'a'.repeat(1001) }),
     ).toThrow()
+    expect(() =>
+      generateImageRequestSchema.parse({
+        name: 'x',
+        description: 'y',
+        style: 'impressionist',
+      }),
+    ).toThrow()
+  })
+
+  it('accepts every source style preset exactly once', () => {
+    expect(IMAGE_STYLES).toHaveLength(17)
+    expect(new Set(IMAGE_STYLES).size).toBe(17)
+    for (const style of IMAGE_STYLES) {
+      expect(
+        generateImageRequestSchema.parse({ name: 'x', description: 'y', style }).style,
+      ).toBe(style)
+    }
   })
 })
 
@@ -230,11 +270,13 @@ describe('jobSchema', () => {
       type: 'generation',
       status: 'pending',
       imageId: 'img-1',
+      name: 'Goblin',
       prompt: 'A goblin',
       createdAt: '2026-01-01T00:00:00.000Z',
       expiresAt: 1767225600,
     })
     expect(pending.status).toBe('pending')
+    expect(pending.name).toBe('Goblin')
 
     const failed = jobSchema.parse({
       ...pending,
@@ -251,6 +293,7 @@ describe('jobSchema', () => {
       type: 'generation',
       status: 'queued',
       imageId: 'img-1',
+      name: 'Goblin',
       prompt: 'A goblin',
       createdAt: '2026-01-01T00:00:00.000Z',
     }

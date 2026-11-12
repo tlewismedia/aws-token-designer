@@ -29,6 +29,11 @@ export function sniffImageType(buf: Buffer): SupportedImageType | null {
   ) {
     return 'image/webp'
   }
+  // GIF: "GIF87a" or "GIF89a"
+  const header = buf.toString('ascii', 0, 6)
+  if (header === 'GIF87a' || header === 'GIF89a') {
+    return 'image/gif'
+  }
   return null
 }
 
@@ -39,7 +44,7 @@ export function validateUploadedBuffer(buf: Buffer): SupportedImageType {
   }
   const type = sniffImageType(buf)
   if (!type) {
-    throw badRequest('File is not a supported image (PNG, JPEG, or WebP)')
+    throw badRequest('File is not a supported image (PNG, JPEG, WebP, or GIF)')
   }
   return type
 }
@@ -64,8 +69,10 @@ async function loadSharp(): Promise<typeof import('sharp')['default']> {
 
 /**
  * Produce the re-encoded (EXIF-stripped) full image and its thumbnail.
- * sharp comes from the Docker-built arm64 Lambda layer
- * (scripts/build-sharp-layer.sh) and is kept external to the esbuild bundle.
+ * Animated GIFs are flattened to their first frame by sharp's default
+ * (single-page) behaviour. sharp comes from the Docker-built arm64 Lambda
+ * layer (scripts/build-sharp-layer.sh) and is kept external to the esbuild
+ * bundle.
  */
 export async function processImage(
   buf: Buffer,

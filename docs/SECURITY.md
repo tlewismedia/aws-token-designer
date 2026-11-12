@@ -44,7 +44,7 @@ root [`SECURITY.md`](../SECURITY.md) and the publication rules in
 - [x] zod validation on every handler; style allowlist; length caps. — Shared
   schemas in `packages/shared`; route tests cover invalid bodies.
 - [x] Presigned upload constraints (type, size); sharp re-encode strips EXIF. —
-  10 MB max, PNG/JPEG/WebP, signed content-length/type, magic-byte check,
+  10 MB max, PNG/JPEG/WebP/GIF, signed content-length/type, magic-byte check,
   re-encode + 512px thumbnail.
 - [x] S3 public access blocked; OAC; short URL TTLs. — Both buckets use
   public-access blocks and SSE-S3; CloudFront reads the web bucket via OAC;
@@ -119,7 +119,7 @@ semantics and checkout `503 BILLING_DISABLED`.
 
 ## Upload constraints
 
-- Maximum 10 MB; `image/png`, `image/jpeg`, `image/webp`.
+- Maximum 10 MB; `image/png`, `image/jpeg`, `image/webp`, `image/gif`.
 - Presigned PUT signs the exact content length and content type.
 - `/complete` verifies magic bytes, strips EXIF, re-encodes, and writes a
   512 px thumbnail; user-supplied paths are never used.

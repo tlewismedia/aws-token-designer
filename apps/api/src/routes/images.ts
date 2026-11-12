@@ -26,6 +26,7 @@ const EXTENSION_BY_TYPE: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
+  'image/gif': 'gif',
 }
 
 export function uploadKey(sub: string, imageId: string, contentType: string): string {
@@ -83,7 +84,7 @@ export function registerImagesRoutes(app: App): void {
       id: imageId,
       sub,
       name: body.name,
-      description: body.description,
+      description: body.description ?? 'Uploaded image',
       style: body.style,
       status: 'pending',
       fullKey: fullKey(sub, imageId),

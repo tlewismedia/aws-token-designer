@@ -4,7 +4,7 @@
 //   Profile : PK USER#<sub>  SK PROFILE            (email, credits)
 //   Image   : PK USER#<sub>  SK IMAGE#<ulid>       (entityId = ulid, status, S3 keys)
 //   Sheet   : PK USER#<sub>  SK SHEET#<ulid>       (entityId = ulid, name, images[])
-//   Job     : PK USER#<sub>  SK JOB#<ulid>         (entityId = ulid, status, imageId, prompt)
+//   Job     : PK USER#<sub>  SK JOB#<ulid>         (entityId = ulid, status, imageId, name, prompt)
 //   Rate    : PK USER#<sub>  SK RATE#<yyyy-mm-dd>  (count, expiresAt TTL)
 //   Payment : PK PAYMENT#<sessionId> SK PAYMENT     (userId, status, credits)
 //
@@ -90,6 +90,9 @@ export interface JobItem extends EntityItem {
   type: 'generation'
   status: JobStatus
   imageId: string
+  /** User-supplied image name (kept as-is on the generated IMAGE). */
+  name: string
+  /** Stability prompt; the API stores the user's description here. */
   prompt: string
   negativePrompt?: string
   style?: Job['style']
@@ -130,6 +133,7 @@ export function jobFromItem(item: JobItem): Job {
     type: item.type,
     status: item.status,
     imageId: item.imageId,
+    name: item.name,
     prompt: item.prompt,
     negativePrompt: item.negativePrompt,
     style: item.style,

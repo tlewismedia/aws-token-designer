@@ -55,6 +55,7 @@ const jobItem = {
   type: 'generation' as const,
   status: 'succeeded' as const,
   imageId: 'img-1',
+  name: 'Goblin chief',
   prompt: 'A goblin chief',
   style: 'anime' as const,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -74,7 +75,11 @@ describe('POST /images/generate', () => {
     const app = createApp()
     const res = await request(app, '/images/generate', {
       method: 'POST',
-      body: JSON.stringify({ prompt: 'A goblin chief', style: 'anime' }),
+      body: JSON.stringify({
+        name: 'Goblin chief',
+        description: 'A goblin chief',
+        style: 'anime',
+      }),
     })
     expect(res.status).toBe(202)
     const body = await json<{ jobId: string }>(res)
@@ -88,6 +93,7 @@ describe('POST /images/generate', () => {
       sub: 'user-1',
       type: 'generation',
       status: 'pending',
+      name: 'Goblin chief',
       prompt: 'A goblin chief',
       style: 'anime',
     })
@@ -119,7 +125,7 @@ describe('POST /images/generate', () => {
     const app = createApp()
     const res = await request(app, '/images/generate', {
       method: 'POST',
-      body: JSON.stringify({ prompt: 'A goblin chief' }),
+      body: JSON.stringify({ name: 'Goblin chief', description: 'A goblin chief' }),
     })
     expect(res.status).toBe(429)
     const body = await json<{ error: { code: string } }>(res)
@@ -134,7 +140,7 @@ describe('POST /images/generate', () => {
     const app = createApp()
     const res = await request(app, '/images/generate', {
       method: 'POST',
-      body: JSON.stringify({ prompt: 'A goblin chief' }),
+      body: JSON.stringify({ name: 'Goblin chief', description: 'A goblin chief' }),
     })
     expect(res.status).toBe(500)
     const body = await json<{ error: { code: string } }>(res)

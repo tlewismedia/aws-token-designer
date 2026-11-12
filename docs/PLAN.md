@@ -324,7 +324,7 @@ aws-token-designer/
 | Image | `USER#<sub>` | `IMAGE#<ulid>` | `entityId` (= ulid), `name`, `description`, `style`, `thumbKey`, `fullKey`, `status`, `createdAt` |
 | Sheet | `USER#<sub>` | `SHEET#<ulid>` | `entityId` (= ulid), `name`, `template`, `images[]`, `createdAt` |
 | Payment | `PAYMENT#<sessionId>` | `PAYMENT` | `userId`, `status`, `creditsGranted`, `creditsToGrant`, `amountTotal`, `processedEventIds`, timestamps |
-| Job | `USER#<sub>` | `JOB#<ulid>` | `type`, `status`, `imageId`, `error`, `expiresAt` |
+| Job | `USER#<sub>` | `JOB#<ulid>` | `type`, `status`, `imageId`, `name`, `prompt` (= description), `error`, `expiresAt` |
 | Rate limit | `USER#<sub>` | `RATE#<yyyy-mm-dd>` | `count`, `expiresAt` (TTL) |
 
 **GSI `byId`:** hash key `entityId`, projection `ALL`. Image, sheet, and job
@@ -371,13 +371,13 @@ across all partitions before comparing ownership (including the `403` vs
 
 **Delete flow:** `DELETE /api/images/{id}` verifies ownership, deletes both S3 objects, deletes the `IMAGE` item, and removes the ID from all sheets.
 
-**Limits:** 10 MB, `image/png`, `image/jpeg`, `image/webp`; server-side re-encode; no user-controlled paths.
+**Limits:** 10 MB, `image/png`, `image/jpeg`, `image/webp`, `image/gif`; server-side re-encode; no user-controlled paths.
 
 ### 6.7 Generation Pipeline
 
-1. `POST /api/images/generate` validates input, enforces the per-user daily cap, creates a `JOB` item (`pending`), async-invokes `generateWorker`, returns `202 { jobId }`.
-2. Worker checks the `generation-enabled` SSM kill switch, calls Stability AI (`stable-image/generate/ultra`) with prompt, negative prompt, style, 1:1, PNG.
-3. Worker writes full + thumb to S3, creates the `IMAGE` item, updates `JOB` to `succeeded` or `failed`.
+1. `POST /api/images/generate` validates `{ name, description, negativePrompt?, style? }`, enforces the per-user daily cap, creates a `JOB` item (`pending`; `prompt` stores the description, `name` is kept for the IMAGE), async-invokes `generateWorker`, returns `202 { jobId }`.
+2. Worker checks the `generation-enabled` SSM kill switch, calls Stability AI (`stable-image/generate/ultra`) with the description as `prompt` plus optional negative prompt and style, 1:1, PNG.
+3. Worker writes full + thumb to S3, creates the `IMAGE` item with the user's `name` and a 500-char-capped `description`, updates `JOB` to `succeeded` or `failed`.
 4. Worker emits `GenerationCount` and `EstimatedAICost` CloudWatch metrics.
 5. Client polls `GET /api/jobs/{jobId}` every 2s until terminal; then invalidates images.
 6. On failure, the job records the error; credits are not deducted in v1.
