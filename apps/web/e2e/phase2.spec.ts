@@ -51,12 +51,9 @@ function readEnvLocal(key: string): string | undefined {
   return undefined
 }
 
-/** Sheet count from the builder (`Count: N/63`). */
+/** Sheet count from the builder: one `.token` tile per entry in `sheet.images`. */
 async function readSheetCount(page: Page): Promise<number> {
-  const text = await page.locator('.sheet-info p').first().textContent()
-  const match = text?.match(/Count:\s*(\d+)\s*\/\s*63/)
-  if (!match) throw new Error(`Could not read the sheet count from "${text ?? ''}"`)
-  return Number(match[1])
+  return page.locator('.image-grid .token').count()
 }
 
 async function expectSheetCount(page: Page, expected: number): Promise<void> {
@@ -86,7 +83,7 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel('Password').fill(E2E_PASSWORD)
   await page.getByRole('button', { name: 'Login', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByRole('heading', { name: 'Token Sheet' })).toBeVisible()
+  await expect(page.locator('.image-grid')).toBeVisible()
 }
 
 test.afterAll(() => {
@@ -143,7 +140,7 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // Make the run idempotent: empty the sheet and delete images left behind
     // by a previous failed run (unique prefix), without assuming a pristine
     // gallery.
-    const clearButton = page.getByRole('button', { name: 'Clear', exact: true })
+    const clearButton = page.getByRole('button', { name: /clear/i })
     if (await clearButton.isEnabled()) {
       const cleared = waitForApi(page, 'PATCH', '/sheets/')
       await clearButton.click()
@@ -151,13 +148,13 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
       await expectSheetCount(page, 0)
     }
 
-    const leftoverFigures = page.getByRole('figure').filter({ hasText: IMAGE_PREFIX })
+    const leftoverItems = page.getByRole('listitem').filter({ hasText: IMAGE_PREFIX })
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const remaining = await leftoverFigures.count()
+      const remaining = await leftoverItems.count()
       if (remaining === 0) break
       page.once('dialog', (dialog) => void dialog.accept())
-      await leftoverFigures.first().getByRole('button', { name: 'Delete' }).click()
-      await expect(leftoverFigures).toHaveCount(remaining - 1)
+      await leftoverItems.first().getByRole('button', { name: 'Delete image' }).click()
+      await expect(leftoverItems).toHaveCount(remaining - 1)
     }
 
     // 3. Upload a PNG; the thumbnail appears in the gallery.
@@ -170,7 +167,7 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await dialog.getByRole('button', { name: 'Upload', exact: true }).click()
     await expect(dialog).toBeHidden({ timeout: 60_000 })
 
-    const figure = page.getByRole('figure').filter({ hasText: imageName })
+    const figure = page.getByRole('listitem').filter({ hasText: imageName })
     await expect(figure).toBeVisible({ timeout: 60_000 })
     const thumbnail = page.getByRole('img', { name: imageName })
     await expect
@@ -178,7 +175,7 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
       .toBe(true)
 
     // 4. Add the image to the sheet; the count rises.
-    const addButton = figure.getByRole('button', { name: 'Add' })
+    const addButton = figure.getByRole('button', { name: 'Add to sheet' })
     await expect(addButton).toBeEnabled()
     const added = waitForApi(page, 'POST', '/sheets/')
     await addButton.click()
@@ -206,16 +203,17 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     expect(reAddBody.sheet.images).toHaveLength(1)
     await expectSheetCount(page, 1)
     const clearedAgain = waitForApi(page, 'PATCH', '/sheets/')
-    await page.getByRole('button', { name: 'Clear', exact: true }).click()
+    await page.getByRole('button', { name: /clear/i }).click()
     const clearBody = (await (await clearedAgain).json()) as { sheet: { images: string[] } }
     expect(clearBody.sheet.images).toHaveLength(0)
     await expectSheetCount(page, 0)
-    await expect(page.getByRole('button', { name: 'Clear', exact: true })).toBeDisabled()
+    // Clear stays available on an empty sheet (source behavior).
+    await expect(page.getByRole('button', { name: /clear/i })).toBeEnabled()
 
     // 8. Delete the image; it leaves the gallery.
     const deleted = waitForApi(page, 'DELETE', '/images/')
     page.once('dialog', (dialog) => void dialog.accept())
-    await figure.getByRole('button', { name: 'Delete' }).click()
+    await figure.getByRole('button', { name: 'Delete image' }).click()
     await deleted
     await expect(figure).toHaveCount(0)
 
@@ -243,9 +241,7 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // with the lazily bootstrapped profile (10 credits + default sheet).
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByText('Registration successful.')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Token Sheet' })).toBeVisible({
-      timeout: 60_000,
-    })
+    await expect(page.locator('.image-grid')).toBeVisible({ timeout: 60_000 })
     await expect(page.locator('.credit-amount')).toHaveText('10', { timeout: 60_000 })
 
     await page.getByRole('button', { name: 'Account menu' }).click()
