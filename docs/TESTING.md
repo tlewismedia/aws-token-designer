@@ -108,7 +108,7 @@ are absent.
 Against a deployed dev stage (or the Vite dev app pointed at it):
 
 1. **Register/login** — new account logs in; navbar shows 10 credits.
-2. **Upload** — drag/drop a PNG/JPEG/WebP under 10 MB; thumbnail appears in
+2. **Upload** — drag/drop a PNG/JPEG/WebP/GIF under 10 MB; thumbnail appears in
    the gallery.
 3. **Add** — add an image to the sheet; count rises.
 4. **Remove** — remove a single token by clicking its ×; the clicked token
@@ -165,7 +165,7 @@ Lambda's ~180 s first retry.
 # 1. Submit a generation.
 curl -i -X POST -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"prompt":"a goblin chief","style":"anime"}' \
+  -d '{"name":"Goblin chief","description":"a goblin chief","style":"anime"}' \
   "$API/images/generate"                              # 202 { "jobId": "..." }
 
 # 2. Poll the job until terminal.
