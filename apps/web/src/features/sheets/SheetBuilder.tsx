@@ -1,14 +1,15 @@
 // SheetBuilder (FR-13): gallery + token sheet + upload/generate modals.
 //
-// Markup and CSS follow the source app (#63). The modals are still the #64
-// adapter components until #65 replaces them with the ported forms.
+// Markup and CSS follow the source app. The ported forms live inside the
+// source-style children-only Modal (issue #65).
 
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faUpload, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons'
+import Modal from '../../components/Modal'
 import ImageGallery from '../images/ImageGallery'
-import UploadImageModal from '../images/UploadImageModal'
-import GenerateImageModal from '../images/GenerateImageModal'
+import GenerateImageForm from '../images/GenerateImageForm'
+import UploadImageForm from '../images/UploadImageForm'
 import TokenSheet from './TokenSheet'
 import './SheetBuilder.css'
 
@@ -43,8 +44,13 @@ export default function SheetBuilder() {
         <TokenSheet />
       </div>
 
-      <UploadImageModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
-      <GenerateImageModal isOpen={isGenerateOpen} onClose={() => setIsGenerateOpen(false)} />
+      <Modal isOpen={isGenerateOpen} onClose={() => setIsGenerateOpen(false)}>
+        <GenerateImageForm />
+      </Modal>
+
+      <Modal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)}>
+        <UploadImageForm />
+      </Modal>
     </div>
   )
 }

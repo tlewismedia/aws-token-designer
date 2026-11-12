@@ -6,32 +6,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   GenerateImageRequest,
   GenerateImageResponse,
-  ImageStyle,
   JobResponse,
 } from '@aws-token-designer/shared'
 import { JOB_POLL_INTERVAL_MS, JOB_POLL_MAX_ATTEMPTS } from '@aws-token-designer/shared/constants'
 import { useAuth } from '../contexts/auth-context'
 import { apiFetch } from '../lib/api'
 import { queryKeys } from '../lib/query-client'
-
-/**
- * Temporary adapter for the pre-#65 form, which still has a single "Prompt"
- * field. The prompt becomes the description (Stability prompt) and the first
- * 100 characters become the image name; #65 replaces this with the real
- * name + description fields.
- */
-export function generateRequestFromPrompt(
-  prompt: string,
-  options: { negativePrompt?: string; style?: ImageStyle } = {},
-): GenerateImageRequest {
-  const description = prompt.trim()
-  return {
-    name: description.slice(0, 100) || 'Generated image',
-    description,
-    ...(options.negativePrompt ? { negativePrompt: options.negativePrompt } : {}),
-    ...(options.style ? { style: options.style } : {}),
-  }
-}
 
 export function useGenerateImage() {
   return useMutation({

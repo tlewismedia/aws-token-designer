@@ -162,12 +162,17 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     // 3. Upload a PNG; the thumbnail appears in the gallery.
     const imageName = `${IMAGE_PREFIX}${Date.now()}`
     await page.getByRole('button', { name: /Upload/ }).click()
-    const dialog = page.getByRole('dialog', { name: 'Upload an image' })
+    const dialog = page.getByRole('dialog', { name: 'Upload Image' })
     await expect(dialog).toBeVisible()
     await dialog.locator('input[type=file]').setInputFiles(FIXTURE)
-    await dialog.getByLabel('Name', { exact: true }).fill(imageName)
+    await dialog.getByLabel('Name *').fill(imageName)
     await dialog.getByRole('button', { name: 'Upload', exact: true }).click()
-    await expect(dialog).toBeHidden({ timeout: 60_000 })
+    // The ported form keeps the source success state instead of auto-closing.
+    await expect(dialog.getByText('Image uploaded successfully!')).toBeVisible({
+      timeout: 60_000,
+    })
+    await dialog.getByRole('button', { name: 'Close dialog' }).click()
+    await expect(dialog).toBeHidden()
 
     const figure = page
       .getByRole('listitem')
