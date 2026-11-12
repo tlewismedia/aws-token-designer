@@ -75,6 +75,11 @@ async function tinyPng(): Promise<Buffer> {
     .toBuffer()
 }
 
+/** Minimal 1x1 GIF (GIF89a) magic bytes + valid image payload for sharp. */
+function tinyGif(): Buffer {
+  return Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64')
+}
+
 beforeAll(() => {
   vi.clearAllMocks()
 })
@@ -193,11 +198,35 @@ describe('POST /images/upload-url', () => {
     expect(body.imageId).toBeTruthy()
     expect(body.uploadUrl).toBe('https://s3-presigned-put')
     expect(repoStub.putImage).toHaveBeenCalledTimes(1)
+    expect(repoStub.putImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Goblin',
+        description: 'Uploaded image',
+        contentType: 'image/png',
+      }),
+    )
     // Presign is constrained to the declared content type + exact size.
     expect(s3Mock.createPresignedPut).toHaveBeenCalledWith(
       expect.objectContaining({ mediaBucket: 'test-bucket' }),
       expect.stringMatching(/^users\/user-1\/images\/.+\/upload\.png$/),
       'image/png',
+      2048,
+    )
+  })
+
+  it('accepts GIF uploads and presigns a .gif key', async () => {
+    vi.clearAllMocks()
+    repoStub.putImage.mockResolvedValue(undefined)
+    const app = createApp()
+    const res = await authedRequest(app, '/images/upload-url', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Waving flag', contentType: 'image/gif', size: 2048 }),
+    })
+    expect(res.status).toBe(201)
+    expect(s3Mock.createPresignedPut).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaBucket: 'test-bucket' }),
+      expect.stringMatching(/^users\/user-1\/images\/.+\/upload\.gif$/),
+      'image/gif',
       2048,
     )
   })
@@ -275,6 +304,26 @@ describe('POST /images/:id/complete', () => {
     const thumbMeta = await sharp(thumbBody).metadata()
     expect(thumbMeta.format).toBe('png')
     expect(thumbMeta.width).toBeLessThanOrEqual(512)
+  })
+
+  it('processes a real GIF upload into PNG full + thumbnail', async () => {
+    vi.clearAllMocks()
+    repoStub.getImageForSub.mockResolvedValue({
+      ...pendingItem,
+      contentType: 'image/gif',
+    })
+    s3Mock.getObjectBuffer.mockResolvedValue(tinyGif())
+    const app = createApp()
+    const res = await authedRequest(app, '/images/img-1/complete', { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = await json<ImageWithUrls>(res)
+    expect(body.status).toBe('ready')
+    expect(s3Mock.putObject).toHaveBeenCalledTimes(2)
+    expect(s3Mock.deleteObjects).toHaveBeenCalledWith('test-bucket', [
+      'users/user-1/images/img-1/upload.gif',
+    ])
+    const thumbMeta = await sharp(s3Mock.putObject.mock.calls[1][2] as Buffer).metadata()
+    expect(thumbMeta.format).toBe('png')
   })
 
   it('returns 400 and marks the image failed for non-images', async () => {
