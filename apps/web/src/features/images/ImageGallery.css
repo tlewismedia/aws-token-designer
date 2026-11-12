@@ -78,7 +78,7 @@
 }
 
 /* Loading state */
-.image-gallery > p {
+.image-gallery > .gallery-loading {
   text-align: center;
   color: #666;
   padding: 40px 20px;

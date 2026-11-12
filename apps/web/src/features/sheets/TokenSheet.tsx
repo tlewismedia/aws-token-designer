@@ -2,7 +2,7 @@
 // Markup and print CSS follow the source app (#63). Removal stays index-aligned
 // with `sheet.images`, including ids whose image is no longer in the gallery.
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPrint, faTrash } from '@fortawesome/free-solid-svg-icons'
 import type { ImageWithUrls } from '@aws-token-designer/shared'
@@ -43,26 +43,26 @@ export default function TokenSheet() {
     index,
     url: imageMap.get(imageId)?.thumbUrl,
   }))
-  const count = tokens.filter((token) => Boolean(token.url)).length
   const emptyCount = Math.max(0, MAX_TOKENS - tokens.length)
 
-  // Wait for thumbnails before opening the print dialog (FR-11).
-  // The signature is kept in state with the count so a sheet change never
-  // needs a setState-in-effect reset (react-hooks/set-state-in-effect).
-  const [loaded, setLoaded] = useState<{ sig: string; count: number }>({ sig: '', count: 0 })
-  const loadedIndexes = useRef<{ sig: string; seen: Set<number> }>({ sig: '', seen: new Set() })
-  const signature = useMemo(() => tokens.map((token) => token.url ?? '').join('|'), [tokens])
-  const ready = count === 0 || (loaded.sig === signature && loaded.count >= count)
+  // Wait for thumbnails before opening the print dialog (FR-11). Readiness is
+  // tracked per loaded URL, not per sheet signature, so adding/removing tokens
+  // never makes already-rendered images look unloaded: their `onLoad` will not
+  // fire again unless the browser remounts them.
+  const [loadedUrls, setLoadedUrls] = useState<Set<string>>(() => new Set())
+  const loadableCount = tokens.filter((token) => Boolean(token.url)).length
+  const loadedCount = tokens.filter(
+    (token) => token.url && loadedUrls.has(token.url),
+  ).length
+  const ready = loadedCount >= loadableCount
 
-  const handleImageReady = (index: number) => {
-    const current = loadedIndexes.current
-    if (current.sig !== signature) {
-      current.sig = signature
-      current.seen = new Set<number>()
-    }
-    if (current.seen.has(index)) return
-    current.seen.add(index)
-    setLoaded({ sig: signature, count: current.seen.size })
+  const handleImageReady = (url: string) => {
+    setLoadedUrls((previous) => {
+      if (previous.has(url)) return previous
+      const next = new Set(previous)
+      next.add(url)
+      return next
+    })
   }
 
   const handleAdd = () => {
@@ -116,6 +116,11 @@ export default function TokenSheet() {
           Add Token Sheet
         </Button>
         <p>No token sheets found. Create one to get started!</p>
+        {createSheet.error && (
+          <p className="error-message" role="alert">
+            Could not create token sheet: {errorText(createSheet.error)}
+          </p>
+        )}
       </div>
     )
   }
@@ -139,7 +144,9 @@ export default function TokenSheet() {
             aria-label="Print"
             disabled={!ready}
             title={
-              ready ? 'Print sheet' : `Preparing images (${loaded.count}/${count})`
+              ready
+                ? 'Print sheet'
+                : `Preparing images (${loadedCount}/${loadableCount})`
             }
           >
             <FontAwesomeIcon icon={faPrint} />

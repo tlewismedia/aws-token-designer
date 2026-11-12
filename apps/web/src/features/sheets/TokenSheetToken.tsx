@@ -6,7 +6,7 @@ type Props = {
   index: number
   sheetId: string
   handleDelete: (sheetId: string, index: number) => Promise<unknown>
-  onImageReady?: (index: number) => void
+  onImageReady?: (url: string) => void
 }
 
 export default function TokenSheetToken({
@@ -24,8 +24,8 @@ export default function TokenSheetToken({
           alt=""
           loading="eager"
           decoding="sync"
-          onLoad={() => onImageReady?.(index)}
-          onError={() => onImageReady?.(index)}
+          onLoad={() => onImageReady?.(url)}
+          onError={() => onImageReady?.(url)}
         />
       ) : (
         // The sheet references an image the gallery no longer has (deleted or

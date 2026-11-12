@@ -27,7 +27,7 @@ export default function ImageGallery() {
   if (images.isLoading) {
     return (
       <div className="image-gallery">
-        <p>Loading images…</p>
+        <p className="gallery-loading">Loading images…</p>
       </div>
     )
   }

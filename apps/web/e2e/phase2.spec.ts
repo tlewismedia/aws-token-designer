@@ -148,7 +148,9 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
       await expectSheetCount(page, 0)
     }
 
-    const leftoverItems = page.getByRole('listitem').filter({ hasText: IMAGE_PREFIX })
+    const leftoverItems = page
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('img', { name: new RegExp(`^${IMAGE_PREFIX}`) }) })
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const remaining = await leftoverItems.count()
       if (remaining === 0) break
@@ -167,7 +169,9 @@ test.describe('Phase 2 UI smoke (dev backend)', () => {
     await dialog.getByRole('button', { name: 'Upload', exact: true }).click()
     await expect(dialog).toBeHidden({ timeout: 60_000 })
 
-    const figure = page.getByRole('listitem').filter({ hasText: imageName })
+    const figure = page
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('img', { name: imageName }) })
     await expect(figure).toBeVisible({ timeout: 60_000 })
     const thumbnail = page.getByRole('img', { name: imageName })
     await expect
