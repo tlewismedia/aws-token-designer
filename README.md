@@ -96,4 +96,4 @@ This repository may be public. Do not commit secrets, Terraform state, or person
 
 ## License
 
-TBD.
+MIT — see [`LICENSE`](LICENSE).
