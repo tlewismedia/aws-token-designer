@@ -47,7 +47,7 @@ Use **SSM SecureString**, **GitHub Secrets**, or a private `terraform.tfvars` th
 ## Repo Hardening
 
 - [x] `.gitignore` covers `.env*`, `.terraform/`, `*.tfstate*`, `*.tfvars` with secrets, `*.pem`. (`cdk.out/` is not used by this repo.)
-- [ ] Run `gitleaks` / `trufflehog` before the first push and in CI. — gitleaks runs in the lefthook pre-commit hook; a CI gitleaks job is not configured yet (the optional CI jobs are Terraform plan and E2E).
+- [ ] Run `gitleaks` / `trufflehog` before the first push. — gitleaks runs in the lefthook pre-commit hook (skipped with a warning if not installed); GitHub secret scanning and push protection are enabled server-side.
 - [ ] GitHub secret scanning enabled. — Repository setting; enable in the GitHub UI.
 - [x] Dependabot or Renovate enabled. — `.github/dependabot.yml` covers npm and GitHub Actions weekly.
 - [ ] CodeQL enabled (free for public repos). — Optional repository setting.

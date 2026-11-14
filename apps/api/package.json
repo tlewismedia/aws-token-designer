@@ -10,7 +10,6 @@
     "build:api": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --external:sharp '--banner:js=import{createRequire as __createRequire} from \"node:module\"; const require = __createRequire(import.meta.url);' --sourcemap",
     "build:generation": "esbuild src/generation.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/generation.mjs --external:sharp '--banner:js=import{createRequire as __createRequire} from \"node:module\"; const require = __createRequire(import.meta.url);' --sourcemap",
     "test": "vitest run",
-    "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "tsx src/scripts/seed-dev.ts"
   },
@@ -29,15 +28,11 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
     "@types/aws-lambda": "^8.10.159",
     "esbuild": "^0.28.2",
-    "eslint": "^9.39.2",
-    "eslint-config-prettier": "^10.1.8",
     "sharp": "^0.35.5",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.46.4",
     "vitest": "^5.1.0"
   }
 }

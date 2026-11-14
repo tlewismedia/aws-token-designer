@@ -10,6 +10,8 @@
 | Target repo | `/Users/tomlewis/prj/aws-token-designer` |
 | Related docs | `PRE_PLANNING.md`, `docs/ARCHITECTURE.md`, `docs/PUBLIC_SAFE.md`, `docs/adr/` |
 
+> **CI status (2026-11-14):** GitHub Actions and required branch-protection checks are intentionally disabled during the sketch phase. Local gates are `lefthook` pre-commit (Oxlint, optional gitleaks, D2 re-render) and pre-push (`npm run typecheck`). See issue #78 to revisit CI. Sections below that describe CI are the target state, not the current setup.
+
 ---
 
 ## 1. Executive Summary
@@ -575,7 +577,7 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 | Security | gitleaks, `npm audit`, manual checklist | Secrets, dependencies, authz |
 | Cost | Budget/alarm verification | Alerts fire in dev |
 
-**CI:** `npm ci`, lint, typecheck, unit/integration tests, `terraform fmt -check` + `validate` + `plan` (dev). E2E runs against dev stage.
+**Local gate (current):** pre-commit `lefthook` runs Oxlint, optional gitleaks, and D2 re-render; pre-push runs `npm run typecheck`. Tests/build/terraform checks are manual. GitHub Actions CI is disabled pending issue #78.
 
 ---
 
@@ -583,16 +585,15 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 
 ### Phase 0 — Repo, docs, tooling (0.5–1 day)
 
-- npm workspaces, Vite app, TS strict, ESLint/Prettier, Vitest, `.nvmrc`, `.gitignore`.
+- npm workspaces, Vite app, TS strict, Oxlint/Prettier, Vitest, `.nvmrc`, `.gitignore`.
 - `README.md`, `docs/PLAN.md`, `docs/ARCHITECTURE.md`, `docs/PUBLIC_SAFE.md`, ADR index.
 - gitleaks pre-commit; secret scanning.
-- Diagram automation: `lefthook` (or `pre-commit`) hook that re-renders changed
-  `.d2` sources and stages the SVG/PNG exports; CI staleness check
-  that re-renders and fails on `git diff --exit-code` (catches `--no-verify`).
+- Diagram automation: `lefthook` pre-commit hook that re-renders changed
+  `.d2` sources and stages the SVG/PNG exports. The CI staleness check is
+  deferred with CI (issue #78).
   See `docs/diagrams/README.md` and `docs/diagrams/compare/COMPARISON.md`.
 - **Acceptance:** `npm run build` and `npm test` pass; gitleaks clean;
-  editing a `.d2` source and committing produces up-to-date exports;
-  CI fails if exports are stale.
+  editing a `.d2` source and committing produces up-to-date exports.
 
 ### Phase 1 — Terraform bootstrap + foundation (1–2 days)
 
@@ -714,11 +715,10 @@ Excluded: Stability AI (~$0.03–0.08/image), Stripe fees (2.9% + $0.30/transact
 - [ ] No secrets in repo; gitleaks clean; secret scanning enabled. — gitleaks
   is clean and configured pre-commit; GitHub secret scanning is a repository
   setting (see `docs/PUBLIC_SAFE.md`).
-- [x] Unit, integration, and E2E tests pass; CI green. — API/web/shared unit
-  suites, DynamoDB Local integration, and the browser E2E (dev and prod) are
-  green; CI runs the offline suites on every PR. A repo-gated OIDC job can run
-  the Playwright suite once `E2E_ROLE_ARN`/`E2E_BASE_URL` and credentials are
-  configured (#52).
+- [x] Unit, integration, and E2E tests pass; local gate green. — API/web/shared
+  unit suites, DynamoDB Local integration, and the browser E2E (dev and prod)
+  are green. The local pre-push gate is `npm run typecheck`; Oxlint runs
+  pre-commit. GitHub Actions CI is disabled pending issue #78.
 - [x] Docs complete and linked from `README.md`. — COSTS, SECURITY, RUNBOOK,
   TESTING, TERRAFORM, ARCHITECTURE, PLAN, REQUIREMENTS, RAID, AGENTS.
 - [ ] Budgets and anomaly detection active. — The budget is active; Cost

@@ -1,6 +1,8 @@
 # Terraform Primer (this stack)
 
 > Phase 1 foundation. Each concept below maps to a concrete file in this repo.
+>
+> **CI status (2026-11-14):** GitHub Actions is disabled; run `terraform fmt -check`, `validate`, and `plan` manually. See issue #78 to revisit CI.
 
 ## Provider
 

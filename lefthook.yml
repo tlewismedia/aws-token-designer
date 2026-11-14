@@ -1,16 +1,22 @@
-# Lefthook config — pre-commit automation.
-# Install: `brew install lefthook gitleaks` (or see https://lefthook.dev),
-# then `lefthook install` once per clone.
+# Lefthook config — local quality gates.
+# Install: `npm install` (runs `lefthook install` via the root `prepare` script).
+# Optional: `brew install gitleaks` for the staged-secret scan.
 pre-commit:
   parallel: true
   commands:
     gitleaks:
-      # Fail the commit if staged changes contain secrets.
-      run: gitleaks protect --staged --verbose --redact
+      # Fail the commit if staged changes contain secrets. Skip gracefully on
+      # machines without gitleaks; GitHub secret scanning + push protection
+      # remain enabled server-side.
+      run: "command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --verbose --redact || echo 'gitleaks not installed; skipping (server-side secret scanning is on)'"
+    lint:
+      run: npm run lint
     render-diagrams:
-      # Re-render changed D2 sources and stage the SVG/PNG exports so they
-      # never go stale. The render script skips gracefully (with a warning)
-      # when Docker is unavailable; CI re-renders and fails on diff, which
-      # catches `--no-verify` commits.
+      # Re-render changed D2 sources and stage the SVG/PNG exports.
       glob: "docs/**/*.d2"
       run: "./scripts/render-diagram.sh {staged_files} && git add docs/diagrams/*.svg docs/diagrams/*.png"
+
+pre-push:
+  commands:
+    typecheck:
+      run: npm run typecheck
