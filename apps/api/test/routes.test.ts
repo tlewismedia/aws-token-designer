@@ -362,7 +362,9 @@ describe('DELETE /images/:id', () => {
   it('deletes S3 objects, the DB item, and sheet references', async () => {
     vi.clearAllMocks()
     repoStub.getImageForSub.mockResolvedValue({
-      ...{ PK: 'USER#user-1', SK: 'IMAGE#img-1', entityId: 'img-1' },
+      PK: 'USER#user-1',
+      SK: 'IMAGE#img-1',
+      entityId: 'img-1',
       name: 'Goblin',
       status: 'ready',
       fullKey: 'users/user-1/images/img-1/full.png',

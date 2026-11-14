@@ -45,6 +45,16 @@ and [RAID](docs/RAID.md) for the remaining external items.
 - **IaC:** Terraform >= 1.10
 - **Region:** us-west-2
 
+## Quality gates
+
+CI is intentionally disabled during the sketch phase (see issue #78). Local gates:
+
+- **pre-commit** (`lefthook`): Oxlint, optional gitleaks, D2 diagram re-render.
+- **pre-push** (`lefthook`): `npm run typecheck`.
+- **manual**: `npm test`, `npm run build`, Terraform commands.
+
+`npm install` runs `lefthook install` via the root `prepare` script.
+
 ## Deploy
 
 Infrastructure is Terraform in `infra/envs/<env>` (`dev` or `prod`); the SPA is

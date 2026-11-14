@@ -1,7 +1,12 @@
 # Testing
 
-How to verify AWS Token Designer locally and in CI, plus the manual smoke
-checklist and the current deployed-dev status.
+How to verify AWS Token Designer locally, plus the manual smoke checklist and
+the current deployed-dev status.
+
+> **CI status (2026-11-14):** GitHub Actions is disabled during the sketch
+> phase. Run the checks below manually; `lefthook` runs Oxlint + diagram
+> rendering pre-commit and `npm run typecheck` pre-push. See issue #78 to
+> revisit CI. Sections below that describe CI are the target state.
 
 ## Automated checks
 

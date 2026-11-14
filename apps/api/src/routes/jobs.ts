@@ -9,7 +9,7 @@ import { parseJsonBody } from '../app.js'
 import { getRepo, jobFromItem, utcDateKey } from '../lib/db.js'
 import { internalError, rateLimited } from '../lib/errors.js'
 import { ulid } from '../lib/ulid.js'
-import { invokeGenerationWorker } from '../lib/worker-invoke.js'
+import { invokeGenerationWorker } from '../lib/generation-invoke.js'
 
 export function registerJobsRoutes(app: App): void {
   app.post('/images/generate', async (c) => {

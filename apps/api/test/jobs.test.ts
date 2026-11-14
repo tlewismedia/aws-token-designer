@@ -20,7 +20,7 @@ vi.mock('../src/lib/db.js', async (importOriginal) => {
 })
 
 const invokeMock = vi.hoisted(() => ({ invokeGenerationWorker: vi.fn() }))
-vi.mock('../src/lib/worker-invoke.js', () => invokeMock)
+vi.mock('../src/lib/generation-invoke.js', () => invokeMock)
 
 import { createApp } from '../src/app.js'
 import { forbidden, notFound } from '../src/lib/errors.js'

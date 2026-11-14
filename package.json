@@ -13,8 +13,14 @@
     "build": "npm run build --workspaces --if-present",
     "e2e": "npm run e2e --workspace @aws-token-designer/web",
     "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "lint": "oxlint apps/web/src apps/api/src apps/api/test packages/shared/src",
+    "lint:fix": "oxlint --fix apps/web/src apps/api/src apps/api/test packages/shared/src",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "lefthook": "^2.2.2",
+    "oxlint": "^1.93.0"
   },
   "engines": {
     "node": "22"

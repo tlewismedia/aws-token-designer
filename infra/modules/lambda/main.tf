@@ -35,8 +35,8 @@ data "archive_file" "worker" {
   output_path = "${path.module}/.terraform/worker.zip"
 
   source {
-    content  = file("${var.source_dist}/worker.mjs")
-    filename = "worker.mjs"
+    content  = file("${var.source_dist}/generation.mjs")
+    filename = "generation.mjs"
   }
 }
 
@@ -238,7 +238,7 @@ resource "aws_lambda_function" "worker" {
   function_name = local.worker_function_name
   description   = "Async image generation worker (Stability AI + sharp)."
   runtime       = "nodejs22.x"
-  handler       = "worker.handler"
+  handler       = "generation.handler"
   architectures = ["arm64"]
   memory_size   = 1024
   timeout       = 120

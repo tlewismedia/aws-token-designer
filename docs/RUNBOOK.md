@@ -333,8 +333,8 @@ the drill date and each alarm's result in the incident log.
 - **Escalation:** the repository owner. For AWS account-level issues, use the
   AWS Support path configured for the account (not documented here).
 - **Access:** AWS credentials come from the operator's CLI profile; there are no
-  long-lived keys in the repo. GitHub Actions uses OIDC when the optional plan
-  job is enabled.
+  long-lived keys in the repo. GitHub Actions CI is currently disabled; if it is
+  re-enabled, use OIDC rather than stored keys (issue #78).
 
 ## Daily checks (2 minutes)
 

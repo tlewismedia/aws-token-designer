@@ -62,7 +62,7 @@ vi.mock('../src/lib/stability.js', () => {
 const processImageMock = vi.hoisted(() => ({ processImage: vi.fn() }))
 vi.mock('../src/lib/process-image.js', () => processImageMock)
 
-import { GENERATION_ERRORS, runGenerationJob } from '../src/worker.js'
+import { GENERATION_ERRORS, runGenerationJob } from '../src/generation.js'
 import { StabilityError, StabilityModerationError } from '../src/lib/stability.js'
 
 const jobItem = {
