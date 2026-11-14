@@ -7,8 +7,14 @@ pre-commit:
     gitleaks:
       # Fail the commit if staged changes contain secrets. Skip gracefully on
       # machines without gitleaks; GitHub secret scanning + push protection
-      # remain enabled server-side.
-      run: "command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --verbose --redact || echo 'gitleaks not installed; skipping (server-side secret scanning is on)'"
+      # remain enabled server-side. (Do not use `|| echo` here — that would
+      # swallow a real gitleaks failure.)
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks protect --staged --verbose --redact
+        else
+          echo 'gitleaks not installed; skipping (server-side secret scanning is on)'
+        fi
     lint:
       run: npm run lint
     render-diagrams:
