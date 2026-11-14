@@ -2,7 +2,7 @@
 set -euo pipefail
 # Bundle both Lambdas: esbuild (ESM, sharp external) into
 #   apps/api/dist/index.mjs   (api)
-#   apps/api/dist/worker.mjs  (generateWorker)
+#   apps/api/dist/generation.mjs  (generateWorker)
 # Terraform zips them (infra/modules/lambda).
 # Usage: ./scripts/build-lambda.sh
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

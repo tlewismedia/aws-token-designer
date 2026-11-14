@@ -6,9 +6,9 @@
   "type": "module",
   "main": "dist/index.mjs",
   "scripts": {
-    "build": "npm run build:api && npm run build:worker",
+    "build": "npm run build:api && npm run build:generation",
     "build:api": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --external:sharp '--banner:js=import{createRequire as __createRequire} from \"node:module\"; const require = __createRequire(import.meta.url);' --sourcemap",
-    "build:worker": "esbuild src/worker.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/worker.mjs --external:sharp '--banner:js=import{createRequire as __createRequire} from \"node:module\"; const require = __createRequire(import.meta.url);' --sourcemap",
+    "build:generation": "esbuild src/generation.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/generation.mjs --external:sharp '--banner:js=import{createRequire as __createRequire} from \"node:module\"; const require = __createRequire(import.meta.url);' --sourcemap",
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",

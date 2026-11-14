@@ -275,9 +275,9 @@ Every resource carries `Project=token-designer`, `Stage=<env>`,
 - `infra/modules/lambda/` — added the `generateWorker` Lambda:
   - `nodejs22.x`, `arm64`, 1024 MB, **timeout 120s**, same Docker-built
     `sharp` layer as `api`.
-  - Bundle: `apps/api/dist/worker.mjs`, produced by
+  - Bundle: `apps/api/dist/generation.mjs`, produced by
     `npm run build --workspace @aws-token-designer/api` (or
-    `./scripts/build-lambda.sh`). Both `index.mjs` and `worker.mjs` must exist
+    `./scripts/build-lambda.sh`). Both `index.mjs` and `generation.mjs` must exist
     before `apply`.
   - Log group `/aws/lambda/token-designer-<stage>-generate-worker`, 7-day
     retention.
